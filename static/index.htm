@@ -76,7 +76,16 @@
                             .text(d => d.text)
         }
 
-        const updateSummaryText = () => {
+        const getSightingTime = (relevantNumbats) => {
+          const numbatTimes = relevantNumbats.filter(d => d.hour !== "NA").map(d => Number(d.hour));
+          let sightingTimeCounts = Array(24).fill(0);
+          for (const time of numbatTimes) {
+            sightingTimeCounts[time] += 1
+          }
+          return sightingTimeCounts.indexOf(Math.max(...sightingTimeCounts));
+        }
+
+        const getRelevantNumbats = () => {
           let relevantNumbats = [];
           let coordinates = selectedStateData.geometry.coordinates;
           numbats.forEach(numbat => {
@@ -88,23 +97,36 @@
               }
             }
           });
+          return relevantNumbats;
+        }
 
+        const updateSummaryText = (relevantNumbats) => {
           // Get most popular sighting time 
-          const numbatTimes = relevantNumbats.filter(d => d.hour !== "NA").map(d => Number(d.hour));
-          let sightingTimeCounts = Array(24).fill(0);
-          for (const time of numbatTimes) {
-            sightingTimeCounts[time] += 1
-          }
-          let sightingTime = sightingTimeCounts.indexOf(Math.max(...sightingTimeCounts));
-
+          let sightingTime = getSightingTime(relevantNumbats); 
           // Get most popular weather
           let sightingWeather = 'sunny'; // TODO -- replace with actual weather 
-
           setSummaryText(sightingTime, sightingWeather, selectedStateData.properties.STATE_NAME, relevantNumbats.length);
         }
 
+        const defaultSummaryText = () => {
+          const austrailiaSightingTime = getSightingTime(numbats);
+          const austrailiaWeather = "cloudy"; // TODO -- replace with actual weather for all of austrailia
+          setSummaryText(austrailiaSightingTime, austrailiaWeather, "Austrailia", numbats.length);
+        }
+
         const clearSummaryText = () => {
-          d3.select("#summary-container").selectAll("*").remove()
+          d3.select("#summary-container").selectAll("*").remove();
+          defaultSummaryText();
+        }
+
+        const updateCircleColors = (relevantNumbats) => {
+          relevantNumbatIds = relevantNumbats.map(d => d.recordID);
+          map.selectAll('.numbat')
+                 .transition()
+                 .duration(500)
+                 .attr("fill", d => 
+                 relevantNumbatIds.includes(d.recordID) ? 
+                 numbatColorScale(d.scientificName) : "#dad7cd")
         }
 
         let statePaths = map.selectAll("path.state").data(austrailia.features)
@@ -121,20 +143,24 @@
                                 selectedState = d3.select(this);
                                 selectedState.attr("fill", "#ccd5ae");
                                 selectedStateData = d;
-                                updateSummaryText();
+                                let relevantNumbats = getRelevantNumbats()
+                                updateSummaryText(relevantNumbats);
+                                updateCircleColors(relevantNumbats)
                               } else if (selectedStateData === d) {
                                 // de-select
-                                console.log("here")
                                 selectedState.attr("fill", "#EEE");
                                 selectedState = null;
                                 clearSummaryText();
+                                updateCircleColors(numbats);
                               } else {
                                 // select
                                 selectedState.attr("fill", "#EEE");
                                 selectedState = d3.select(this);
                                 selectedState.attr("fill", "#ccd5ae");
                                 selectedStateData = d;
-                                updateSummaryText();
+                                let relevantNumbats = getRelevantNumbats()
+                                updateSummaryText(relevantNumbats);
+                                updateCircleColors(relevantNumbats)
                               }
                             });
 
@@ -155,6 +181,8 @@
                          .attr("opacity", 0.8)
                          .attr("fill", d => numbatColorScale(d.scientificName));
 
+        // Set default summary text
+        defaultSummaryText();
       }
       drawPlot();
     </script>
