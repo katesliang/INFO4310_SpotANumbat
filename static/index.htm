@@ -43,7 +43,7 @@
 
         const setSummaryText = (sightingTime, sightingWeather, state, numbatCount) => {
           let displaySightingTime = `${sightingTime > 12 ? sightingTime - 12 : sightingTime} ${sightingTime > 12 ? "PM" : "AM"}`
-          const highlightColor = 'green'
+          const highlightColor = '#6a994e'
           let textData = [
             [{ text: "In ", color: 'black' }, { text: `${state}`, color: highlightColor }, 
             { text: ", ", color: 'black'}, { text: `${numbatCount} `, color: highlightColor },
