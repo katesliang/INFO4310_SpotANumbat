@@ -14,13 +14,149 @@
     <div id="header">
         <h1>Spot a Numbat </h1>
         <p>Amy Huang (ach243), Jonna Chen (jc2627), Kate Liang (ksl67), Stephanie Zhang (swz8)</p>
+        <svg id="austrailia-map" height="700" width="900"></svg>
+        <svg id="summary-container" height="300" width="900"></svg>
     </div>
 
     <script>
-      const drawMap = async () => {
-        const austrailia = await d3.json('./austrailian.states.geojson')
-      }
+      const drawPlot = async () => {
+        // Load data
+        var numbats = await d3.csv('./numbats.csv');
+        const austrailia = await d3.json('./austrailian.states.geojson');
+        const numbatSpecies = [... new Set(numbats.map(d => d.scientificName))];
+        var selectedState;
+        var selectedStateData;
+        console.log(numbats)
 
+        // Scales 
+        const numbatColorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(numbatSpecies);
+
+        // Draw map
+        const mapSvg = d3.select("#austrailia-map");
+        const mapMargin = { top: 20, left: 20, right: 20, bottom: 20 };
+        const mapWidth = mapSvg.attr("width") - mapMargin.left - mapMargin.right;
+        const mapHeight = mapSvg.attr("height") - mapMargin.top - mapMargin.bottom;
+        const map = mapSvg.append("g").attr("transform", `${mapMargin.left}, ${mapMargin.top}`);
+
+        const projection = d3.geoMercator().fitSize([mapWidth, mapHeight], austrailia)
+        const path = d3.geoPath().projection(projection);
+
+        const setSummaryText = (sightingTime, sightingWeather, state, numbatCount) => {
+          let displaySightingTime = `${sightingTime > 12 ? sightingTime - 12 : sightingTime} ${sightingTime > 12 ? "PM" : "AM"}`
+          const highlightColor = 'green'
+          let textData = [
+            [{ text: "In ", color: 'black' }, { text: `${state}`, color: highlightColor }, 
+            { text: ", ", color: 'black'}, { text: `${numbatCount} `, color: highlightColor },
+            { text: `numbat${numbatCount == 1 ? " has" : "s have"} been sighted.`, color: 'black'}], 
+          ]
+          if (sightingTime != 0) {
+            textData.push([{ text: "The most common sighting time is ", color: 'black'}, { text: `${displaySightingTime}.`, color: highlightColor}])
+          }
+          if (numbatCount != 0) {
+            textData.push([{ text: "Numbats are typically seen on ", color: 'black' }, { text: `${sightingWeather} `, color: highlightColor}, { text: "days", color: 'black' }])
+          }
+          let texts = d3.select("#summary-container").selectAll('text.summary').data(textData)
+                        .join("text")
+                        .attr("class", "summary");
+
+          let xPadding = 10;
+          let yPosition = 0;
+          texts.attr("x", xPadding)
+               .attr("y", function(d) {
+                  yPosition += 20; 
+                  return yPosition;
+               })
+               .attr("text-anchor", "start")
+               .attr("alignment-baseline", "hanging")
+               .attr("font-size", 22)
+          
+          let tspans = texts.selectAll("tspan").data(d => d).join("tspan")
+                            .style("fill", d => d.color)
+                            .style("font-weight", d => d.color == "black" ? 100: 900)
+                            .text(d => d.text)
+        }
+
+        const updateSummaryText = () => {
+          let relevantNumbats = [];
+          let coordinates = selectedStateData.geometry.coordinates;
+          numbats.forEach(numbat => {
+            let point = [numbat.decimalLongitude, numbat.decimalLatitude];
+            for (let i = 0; i < coordinates.length; i++) {
+              if (d3.polygonContains(coordinates[i][0], point)) {
+                relevantNumbats.push(numbat);
+                break;
+              }
+            }
+          });
+
+          // Get most popular sighting time 
+          const numbatTimes = relevantNumbats.filter(d => d.hour !== "NA").map(d => Number(d.hour));
+          let sightingTimeCounts = Array(24).fill(0);
+          for (const time of numbatTimes) {
+            sightingTimeCounts[time] += 1
+          }
+          let sightingTime = sightingTimeCounts.indexOf(Math.max(...sightingTimeCounts));
+
+          // Get most popular weather
+          let sightingWeather = 'sunny'; // TODO -- replace with actual weather 
+
+          setSummaryText(sightingTime, sightingWeather, selectedStateData.properties.STATE_NAME, relevantNumbats.length);
+        }
+
+        const clearSummaryText = () => {
+          d3.select("#summary-container").selectAll("*").remove()
+        }
+
+        let statePaths = map.selectAll("path.state").data(austrailia.features)
+                            .join("path")
+                            .attr("class", "state")
+                            .attr("note", d => d.id)
+                            .attr("fill", '#EEE')
+                            .attr("stroke", "white")
+                            .attr("stroke-width", "2")
+                            .attr("d", path)
+                            .on("click", function (e, d) { 
+                              if (selectedState == null) {
+                                // initialize
+                                selectedState = d3.select(this);
+                                selectedState.attr("fill", "#ccd5ae");
+                                selectedStateData = d;
+                                updateSummaryText();
+                              } else if (selectedStateData === d) {
+                                // de-select
+                                console.log("here")
+                                selectedState.attr("fill", "#EEE");
+                                selectedState = null;
+                                clearSummaryText();
+                              } else {
+                                // select
+                                selectedState.attr("fill", "#EEE");
+                                selectedState = d3.select(this);
+                                selectedState.attr("fill", "#ccd5ae");
+                                selectedStateData = d;
+                                updateSummaryText();
+                              }
+                            });
+
+        // Pre-processing
+        numbats = numbats.filter(d => d.decimalLatitude !== "NA" || d.decimalLongitude !== "NA");
+        numbats.forEach(d => {
+          d.decimalLatitude = Number(d.decimalLatitude);
+          d.decimalLongitude = Number(d.decimalLongitude);
+          d.position = projection([d.decimalLongitude, d.decimalLatitude]);
+        });
+
+        let circles = map.selectAll("circle.numbat").data(numbats)
+                         .join("circle")
+                         .attr("class", "numbat")
+                         .attr("r", 4)
+                         .attr("cx", d => d.position[0])
+                         .attr("cy", d => d.position[1])
+                         .attr("opacity", 0.8)
+                         .attr("fill", d => numbatColorScale(d.scientificName));
+
+      }
+      drawPlot();
     </script>
 
 </body>
