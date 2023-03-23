@@ -2,7 +2,7 @@
 
 <head>
     <title>INFO4310 - Spot a Numbat</title>
-
+    <meta charset="UTF-8">
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://d3js.org/topojson.v2.min.js"></script>
 
@@ -15,7 +15,9 @@
         <h1>Spot a Numbat </h1>
         <p>Amy Huang (ach243), Jonna Chen (jc2627), Kate Liang (ksl67), Stephanie Zhang (swz8)</p>
         <svg id="austrailia-map" height="700" width="900"></svg>
-        <svg id="summary-container" height="300" width="900"></svg>
+        <svg id="summary-text" height="300" width="900"></svg>
+        <svg id="bars" height="500" width="500"></svg>
+        <svg id="legend" height="300" width="550"></svg>
     </div>
 
     <script>
@@ -26,7 +28,6 @@
         const numbatSpecies = [... new Set(numbats.map(d => d.scientificName))];
         var selectedState;
         var selectedStateData;
-        console.log(numbats)
 
         // Scales 
         const numbatColorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(numbatSpecies);
@@ -55,7 +56,7 @@
           if (numbatCount != 0) {
             textData.push([{ text: "Numbats are typically seen on ", color: 'black' }, { text: `${sightingWeather} `, color: highlightColor}, { text: "days", color: 'black' }])
           }
-          let texts = d3.select("#summary-container").selectAll('text.summary').data(textData)
+          let texts = d3.select("#summary-text").selectAll('text.summary').data(textData)
                         .join("text")
                         .attr("class", "summary");
 
@@ -115,7 +116,7 @@
         }
 
         const clearSummaryText = () => {
-          d3.select("#summary-container").selectAll("*").remove();
+          d3.select("#summary-text").selectAll("*").remove();
           defaultSummaryText();
         }
 
@@ -164,8 +165,8 @@
                               }
                             });
 
-        // Pre-processing
-        numbats = numbats.filter(d => d.decimalLatitude !== "NA" || d.decimalLongitude !== "NA");
+        // Map pre-processing
+        numbats = numbats.filter(d => d.decimalLatitude != "NA" && d.decimalLongitude != "NA");
         numbats.forEach(d => {
           d.decimalLatitude = Number(d.decimalLatitude);
           d.decimalLongitude = Number(d.decimalLongitude);
@@ -175,14 +176,127 @@
         let circles = map.selectAll("circle.numbat").data(numbats)
                          .join("circle")
                          .attr("class", "numbat")
-                         .attr("r", 4)
+                         .attr("r", 6)
                          .attr("cx", d => d.position[0])
                          .attr("cy", d => d.position[1])
                          .attr("opacity", 0.8)
                          .attr("fill", d => numbatColorScale(d.scientificName));
 
+        const drawBarChart = () => {
+          const barsSvg = d3.select('#bars');
+          const barMargin = {top: 10, right: 10, bottom: 70, left: 100};
+          const chartWidth = barsSvg.attr("width") - barMargin.left - barMargin.right;
+          const chartHeight = barsSvg.attr("height") - barMargin.top - barMargin.bottom;
+          let annotations = barsSvg.append("g").attr("id", "annotations");
+          let chartArea = barsSvg.append("g").attr("id", "points")
+                          .attr("transform",`translate(${barMargin.left},${barMargin.top})`);
+
+          // Pre-process numbats with valid months
+          const validSeasonNumbats = numbats.filter(d => d.month != "NA");
+          const seasonMap = { "Jun": "summer", "Jul": "summer", "Aug": "summer", "Sep": "autumn", "Oct": "autumn", "Nov": "autumn",
+                              "Dec": "winter", "Jan": "winter", "Feb": "winter", "Mar": "spring", "Apr": "spring", "May": "spring"}
+          validSeasonNumbats.forEach(d => {
+            d.season = seasonMap[d.month]
+          })
+          const seasons = ["summer", "autumn", "winter", "spring"]
+
+          // Scales for bar chart
+          const seasonScale = d3.scaleBand().domain(seasons).range([0, chartWidth]).padding(0.2);
+          const yScale = d3.scaleLinear().domain([0, 300]).range([chartHeight, 0]);
+
+          // Create stack dataset
+          const barDataMap = {};
+          seasons.forEach(d => {
+            barDataMap[d] = Object.assign({}, ...numbatSpecies.map((x) => ({ [x]: 0} )))
+          });
+          validSeasonNumbats.forEach(d => {
+            barDataMap[d.season][d.scientificName] = barDataMap[d.season][d.scientificName] + 1;
+          })
+          const barDataset = [];
+          for (var key in barDataMap) {
+            barDataset.push({
+              season: key, 
+              ...barDataMap[key]
+            })
+          }
+
+          // Axes and gridlines
+          let leftAxis = d3.axisLeft(yScale);
+          let leftGridlines = d3.axisLeft(yScale)
+                                .tickSize(-chartWidth-10)
+                                .tickFormat("");
+          annotations.append("g")
+               .attr("class", "y axis")
+               .attr("transform",`translate(${barMargin.left-10},${barMargin.top})`)
+               .call(leftAxis)
+          annotations.append("g")
+               .attr("class", "y gridlines")
+               .attr("transform",`translate(${barMargin.left-10},${barMargin.top})`)
+               .call(leftGridlines);
+               
+          const iconMap = { summer: "☀️", winter: "❄️", spring: "🌸", autumn: "🍂"};
+          let bottomAxis = d3.axisBottom(seasonScale).tickFormat(d => iconMap[d]);
+          let bottomTicks = annotations.append("g").attr("class", "x axis")
+                    .attr("transform",`translate(${barMargin.left},${chartHeight+barMargin.top+10})`)
+                    .call(bottomAxis);
+          bottomTicks.selectAll("text").attr("font-size", 22);
+
+          // Draw bars 
+          const stackGenerator = d3.stack().keys(numbatSpecies);
+          const stackData = stackGenerator(barDataset);
+
+          chartArea.selectAll("g").data(stackData)
+                   .enter().append("g")
+                   .attr("fill", d => numbatColorScale(d.key))
+                    .selectAll("rect")
+                    .data(d => d)
+                    .enter().append("rect")
+                    .attr("x", d => seasonScale(d.data.season))
+                    .attr("y", d => yScale(d[1]))
+                    .attr("height", d => yScale(d[0]) - yScale(d[1]))
+                    .attr("width", seasonScale.bandwidth())
+
+        // Axis labels
+        chartArea.append("text")
+            .attr("class", "x label")
+            .attr("text-anchor", "middle")
+            .attr("x", chartWidth / 2)
+            .attr("y", chartHeight + barMargin.bottom - 10)
+            .text("Seasons");
+    
+        chartArea.append("text")
+            .attr("class", "y label")
+            .attr("text-anchor", "middle")
+            .attr("y", 15)
+            .attr("dy", ".75em")
+            .attr("transform", `rotate(-90) translate(${-chartHeight / 2},${-barMargin.left + 20})`)
+            .text("Numbat Count");
+
+        const startY = 50;
+        const legend = d3.select("#legend");
+        numbatSpecies.forEach((d, i) => {
+          legend.append("circle")
+                 .attr("cx", 50)
+                 .attr("cy", startY + 30 * i)
+                 .attr("r", 6)
+                 .attr("fill", numbatColorScale(d))
+
+          let firstText = legend.append("text")
+              .text(d)
+              .attr("font-size", "16px")
+              .attr("font-style", "italic")
+              .attr("fill", numbatColorScale(d))
+              .attr("x", 70)
+              .attr("y", startY + 30 * i)
+              .attr("alignment-baseline","middle")
+        })
+        }
+
         // Set default summary text
         defaultSummaryText();
+        
+        // Draw bar chart 
+        drawBarChart();
       }
       drawPlot();
     </script>
