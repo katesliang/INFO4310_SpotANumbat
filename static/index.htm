@@ -1,406 +1,544 @@
 <html>
 
 <head>
-  <title>INFO4310 - Spot a Numbat</title>
-  <meta charset="UTF-8">
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <script src="https://d3js.org/topojson.v2.min.js"></script>
-  
-  <style></style>
-  
+    <title>INFO4310 - Spot a Numbat</title>
+    <meta charset="UTF-8">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v2.min.js"></script>
+
+    <style>
+        @font-face {
+            font-family: Adelia;
+            src: url("fonts/ADELIA.otf");
+        }
+
+        @font-face {
+            font-family: "SFPro";
+            src: url("fonts/SFPRODISPLAYREGULAR.OTF");
+        }
+
+        @font-face {
+            font-family: "SFPro-Bold";
+            src: url("fonts/SFPRODISPLAYBOLD.OTF");
+        }
+
+        body {
+            background-color: #faf6e9;
+            font-family: SFPro;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #legend {
+            position: absolute;
+            right: 0;
+            top: 0;
+        }
+
+        #header {
+            padding: 30px;
+            text-align: center;
+            height: 10%
+        }
+
+        #header h1 {
+            font-family: Adelia;
+            font-size: 50px;
+            margin: 0px;
+        }
+
+        #visualization {
+            display: flex;
+            justify-content: space-around;
+        }
+
+        #col-1 {
+            flex-grow: 3;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding-left: 40px;
+            align-items: center;
+        }
+
+        #col-1 #instructions {
+            background: white;
+            border-radius: 25px;
+            padding: 20px;
+            margin: 10px;
+            margin-bottom: 20px;
+            box-shadow: -10px 10px rgb(207, 207, 207);
+        }
+
+        #col-1 #filters {
+            background: white;
+            border-radius: 25px;
+            padding: 20px;
+            height: 300px;
+            margin: 10px;
+            margin-top: 20px;
+            box-shadow: -10px 10px rgb(207, 207, 207);
+        }
+
+        #col-2 {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #col-2 #australia-map {}
+
+        #col-2 #summary {}
+
+        #col-3 {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: white;
+            border-radius: 25px;
+            padding: 20px;
+            padding-bottom: 10px;
+            margin: 10px 60px 15px 15px;
+            box-shadow: -10px 10px rgb(207, 207, 207);
+        }
+
+        #col-3 h2 {
+            font-family: SFPro-Bold;
+            margin: 5px;
+        }
+
+        #col-3 #bars {}
+
+        #col-3 #lines {}
+    </style>
+
 </head>
 
 <body>
-  <div id="header">
-    <h1>Spot a Numbat </h1>
-    <p>Amy Huang (ach243), Jonna Chen (jc2627), Kate Liang (ksl67), Stephanie Zhang (swz8)</p>
-    <svg id="austrailia-map" height="700" width="900"></svg>
-    <svg id="summary-text" height="300" width="900"></svg>
-    <svg id="bars" height="500" width="500"></svg>
-    <svg id="lines" height="500" width="500"></svg>
-    <svg id="legend" height="300" width="550"></svg>
-  </div>
-  
-  <script>
-    const drawPlot = async () => {
-      // Load data
-      var numbats = await d3.csv('./numbats.csv');
-      console.log(numbats);
-      const austrailia = await d3.json('./austrailian.states.geojson');
-      const numbatSpecies = [... new Set(numbats.map(d => d.scientificName))];
-      var selectedState;
-      var selectedStateData;
-      
-      // Scales 
-      const numbatColorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(numbatSpecies);
-      
-      // Draw map
-      const mapSvg = d3.select("#austrailia-map");
-      const mapMargin = { top: 20, left: 20, right: 20, bottom: 20 };
-      const mapWidth = mapSvg.attr("width") - mapMargin.left - mapMargin.right;
-      const mapHeight = mapSvg.attr("height") - mapMargin.top - mapMargin.bottom;
-      const map = mapSvg.append("g").attr("transform", `${mapMargin.left}, ${mapMargin.top}`);
-      
-      const projection = d3.geoMercator().fitSize([mapWidth, mapHeight], austrailia)
-      const path = d3.geoPath().projection(projection);
-      
-      const setSummaryText = (sightingTime, sightingWeather, state, numbatCount) => {
-        let displaySightingTime = `${sightingTime > 12 ? sightingTime - 12 : sightingTime} ${sightingTime > 12 ? "PM" : "AM"}`
-        const highlightColor = '#6a994e'
-        let textData = [
-        [{ text: "In ", color: 'black' }, { text: `${state}`, color: highlightColor }, 
-        { text: ", ", color: 'black'}, { text: `${numbatCount} `, color: highlightColor },
-        { text: `numbat${numbatCount == 1 ? " has" : "s have"} been sighted.`, color: 'black'}], 
-        ]
-        if (sightingTime != 0) {
-          textData.push([{ text: "The most common sighting time is ", color: 'black'}, { text: `${displaySightingTime}.`, color: highlightColor}])
-        }
-        if (numbatCount != 0) {
-          textData.push([{ text: "Numbats are typically seen on ", color: 'black' }, { text: `${sightingWeather} `, color: highlightColor}, { text: "days", color: 'black' }])
-        }
-        let texts = d3.select("#summary-text").selectAll('text.summary').data(textData)
-        .join("text")
-        .attr("class", "summary");
-        
-        let xPadding = 10;
-        let yPosition = 0;
-        texts.attr("x", xPadding)
-        .attr("y", function(d) {
-          yPosition += 20; 
-          return yPosition;
-        })
-        .attr("text-anchor", "start")
-        .attr("alignment-baseline", "hanging")
-        .attr("font-size", 22)
-        
-        let tspans = texts.selectAll("tspan").data(d => d).join("tspan")
-        .style("fill", d => d.color)
-        .style("font-weight", d => d.color == "black" ? 100: 900)
-        .text(d => d.text)
-      }
-      
-      const getSightingTime = (relevantNumbats) => {
-        const numbatTimes = relevantNumbats.filter(d => d.hour !== "NA").map(d => Number(d.hour));
-        let sightingTimeCounts = Array(24).fill(0);
-        for (const time of numbatTimes) {
-          sightingTimeCounts[time] += 1
-        }
-        return sightingTimeCounts.indexOf(Math.max(...sightingTimeCounts));
-      }
-      
-      const getRelevantNumbats = () => {
-        let relevantNumbats = [];
-        let coordinates = selectedStateData.geometry.coordinates;
-        numbats.forEach(numbat => {
-          let point = [numbat.decimalLongitude, numbat.decimalLatitude];
-          for (let i = 0; i < coordinates.length; i++) {
-            if (d3.polygonContains(coordinates[i][0], point)) {
-              relevantNumbats.push(numbat);
-              break;
+    <svg id="legend" height="300" width="400"></svg>
+    <div id="header">
+        <h1>Spot a Numbat </h1>
+        <p>Amy Huang (ach243), Jonna Chen (jc2627), Kate Liang (ksl67), Stephanie Zhang (swz8)</p>
+    </div>
+    <div id="visualization">
+        <div id="col-1">
+            <div id="instructions">
+                <h2>Instructions</h2>
+                <p>Use the filters to filter through certain species.</p>
+            </div>
+            <div id="filters"></div>
+        </div>
+        <div id="col-2">
+            <svg id="australia-map" height="500" width="600"></svg>
+            <svg id="summary-text" height="100" width="600"></svg>
+        </div>
+        <div id="col-3">
+            <h2>Overview</h2>
+            <svg id="bars" height="300" width="300"></svg>
+            <svg id="lines" height="300" width="300"></svg>
+        </div>
+    </div>
+    <script>
+        const drawPlot = async () => {
+            // Load data
+            var numbats = await d3.csv('./numbats.csv');
+            console.log(numbats);
+            const australia = await d3.json('./austrailian.states.geojson');
+            const numbatSpecies = [... new Set(numbats.map(d => d.scientificName))];
+            var selectedState;
+            var selectedStateData;
+
+            // Scales 
+            const numbatColorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(numbatSpecies);
+
+            // Draw map
+            const mapSvg = d3.select("#australia-map");
+            const mapMargin = { top: 20, left: 20, right: 20, bottom: 20 };
+            const mapWidth = mapSvg.attr("width") - mapMargin.left - mapMargin.right;
+            const mapHeight = mapSvg.attr("height") - mapMargin.top - mapMargin.bottom;
+            const map = mapSvg.append("g").attr("transform", `${mapMargin.left}, ${mapMargin.top}`);
+
+            const projection = d3.geoMercator().fitSize([mapWidth, mapHeight], australia)
+            const path = d3.geoPath().projection(projection);
+
+            const setSummaryText = (sightingTime, sightingWeather, state, numbatCount) => {
+                let displaySightingTime = `${sightingTime > 12 ? sightingTime - 12 : sightingTime} ${sightingTime > 12 ? "PM" : "AM"}`
+                const highlightColor = '#6a994e'
+                let textData = [
+                    [{ text: "In ", color: 'black' }, { text: `${state}`, color: highlightColor },
+                    { text: ", ", color: 'black' }, { text: `${numbatCount} `, color: highlightColor },
+                    { text: `numbat${numbatCount == 1 ? " has" : "s have"} been sighted.`, color: 'black' }],
+                ]
+                if (sightingTime != 0) {
+                    textData.push([{ text: "The most common sighting time is ", color: 'black' }, { text: `${displaySightingTime}.`, color: highlightColor }])
+                }
+                if (numbatCount != 0) {
+                    textData.push([{ text: "Numbats are typically seen on ", color: 'black' }, { text: `${sightingWeather} `, color: highlightColor }, { text: "days", color: 'black' }])
+                }
+                let texts = d3.select("#summary-text").selectAll('text.summary').data(textData)
+                    .join("text")
+                    .attr("class", "summary");
+
+                let xPadding = 10;
+                let yPosition = 0;
+                texts.attr("x", xPadding)
+                    .attr("y", function (d) {
+                        yPosition += 20;
+                        return yPosition;
+                    })
+                    .attr("text-anchor", "start")
+                    .attr("alignment-baseline", "hanging")
+                    .attr("font-size", 22)
+
+                let tspans = texts.selectAll("tspan").data(d => d).join("tspan")
+                    .style("fill", d => d.color)
+                    .style("font-weight", d => d.color == "black" ? 100 : 900)
+                    .text(d => d.text)
             }
-          }
-        });
-        return relevantNumbats;
-      }
-      
-      const updateSummaryText = (relevantNumbats) => {
-        // Get most popular sighting time 
-        let sightingTime = getSightingTime(relevantNumbats); 
-        // Get most popular weather
-        let sightingWeather = 'sunny'; // TODO -- replace with actual weather 
-        setSummaryText(sightingTime, sightingWeather, selectedStateData.properties.STATE_NAME, relevantNumbats.length);
-      }
-      
-      const defaultSummaryText = () => {
-        const austrailiaSightingTime = getSightingTime(numbats);
-        const austrailiaWeather = "cloudy"; // TODO -- replace with actual weather for all of austrailia
-        setSummaryText(austrailiaSightingTime, austrailiaWeather, "Austrailia", numbats.length);
-      }
-      
-      const clearSummaryText = () => {
-        d3.select("#summary-text").selectAll("*").remove();
-        defaultSummaryText();
-      }
-      
-      const updateCircleColors = (relevantNumbats) => {
-        relevantNumbatIds = relevantNumbats.map(d => d.recordID);
-        map.selectAll('.numbat')
-        .transition()
-        .duration(500)
-        .attr("fill", d => 
-        relevantNumbatIds.includes(d.recordID) ? 
-        numbatColorScale(d.scientificName) : "#dad7cd")
-      }
-      
-      let statePaths = map.selectAll("path.state").data(austrailia.features)
-      .join("path")
-      .attr("class", "state")
-      .attr("note", d => d.id)
-      .attr("fill", '#EEE')
-      .attr("stroke", "white")
-      .attr("stroke-width", "2")
-      .attr("d", path)
-      .on("click", function (e, d) { 
-        if (selectedState == null) {
-          // initialize
-          selectedState = d3.select(this);
-          selectedState.attr("fill", "#ccd5ae");
-          selectedStateData = d;
-          let relevantNumbats = getRelevantNumbats()
-          updateSummaryText(relevantNumbats);
-          updateCircleColors(relevantNumbats)
-        } else if (selectedStateData === d) {
-          // de-select
-          selectedState.attr("fill", "#EEE");
-          selectedState = null;
-          clearSummaryText();
-          updateCircleColors(numbats);
-        } else {
-          // select
-          selectedState.attr("fill", "#EEE");
-          selectedState = d3.select(this);
-          selectedState.attr("fill", "#ccd5ae");
-          selectedStateData = d;
-          let relevantNumbats = getRelevantNumbats()
-          updateSummaryText(relevantNumbats);
-          updateCircleColors(relevantNumbats)
+
+            const getSightingTime = (relevantNumbats) => {
+                const numbatTimes = relevantNumbats.filter(d => d.hour !== "NA").map(d => Number(d.hour));
+                let sightingTimeCounts = Array(24).fill(0);
+                for (const time of numbatTimes) {
+                    sightingTimeCounts[time] += 1
+                }
+                return sightingTimeCounts.indexOf(Math.max(...sightingTimeCounts));
+            }
+
+            const getRelevantNumbats = () => {
+                let relevantNumbats = [];
+                let coordinates = selectedStateData.geometry.coordinates;
+                numbats.forEach(numbat => {
+                    let point = [numbat.decimalLongitude, numbat.decimalLatitude];
+                    for (let i = 0; i < coordinates.length; i++) {
+                        if (d3.polygonContains(coordinates[i][0], point)) {
+                            relevantNumbats.push(numbat);
+                            break;
+                        }
+                    }
+                });
+                return relevantNumbats;
+            }
+
+            const updateSummaryText = (relevantNumbats) => {
+                // Get most popular sighting time 
+                let sightingTime = getSightingTime(relevantNumbats);
+                // Get most popular weather
+                let sightingWeather = 'sunny'; // TODO -- replace with actual weather 
+                setSummaryText(sightingTime, sightingWeather, selectedStateData.properties.STATE_NAME, relevantNumbats.length);
+            }
+
+            const defaultSummaryText = () => {
+                const australiaSightingTime = getSightingTime(numbats);
+                const australiaWeather = "cloudy"; // TODO -- replace with actual weather for all of australia
+                setSummaryText(australiaSightingTime, australiaWeather, "Australia", numbats.length);
+            }
+
+            const clearSummaryText = () => {
+                d3.select("#summary-text").selectAll("*").remove();
+                defaultSummaryText();
+            }
+
+            const updateCircleColors = (relevantNumbats) => {
+                relevantNumbatIds = relevantNumbats.map(d => d.recordID);
+                map.selectAll('.numbat')
+                    .transition()
+                    .duration(500)
+                    .attr("fill", d =>
+                        relevantNumbatIds.includes(d.recordID) ?
+                            numbatColorScale(d.scientificName) : "#dad7cd")
+            }
+
+            let statePaths = map.selectAll("path.state").data(australia.features)
+                .join("path")
+                .attr("class", "state")
+                .attr("note", d => d.id)
+                .attr("fill", '#EEE')
+                .attr("stroke", "white")
+                .attr("stroke-width", "2")
+                .attr("d", path)
+                .on("click", function (e, d) {
+                    if (selectedState == null) {
+                        // initialize
+                        selectedState = d3.select(this);
+                        selectedState.attr("fill", "#ccd5ae");
+                        selectedStateData = d;
+                        let relevantNumbats = getRelevantNumbats()
+                        updateSummaryText(relevantNumbats);
+                        updateCircleColors(relevantNumbats)
+                    } else if (selectedStateData === d) {
+                        // de-select
+                        selectedState.attr("fill", "#EEE");
+                        selectedState = null;
+                        clearSummaryText();
+                        updateCircleColors(numbats);
+                    } else {
+                        // select
+                        selectedState.attr("fill", "#EEE");
+                        selectedState = d3.select(this);
+                        selectedState.attr("fill", "#ccd5ae");
+                        selectedStateData = d;
+                        let relevantNumbats = getRelevantNumbats()
+                        updateSummaryText(relevantNumbats);
+                        updateCircleColors(relevantNumbats)
+                    }
+                });
+
+            // Map pre-processing
+            numbats = numbats.filter(d => d.decimalLatitude != "NA" && d.decimalLongitude != "NA");
+            numbats.forEach(d => {
+                d.decimalLatitude = Number(d.decimalLatitude);
+                d.decimalLongitude = Number(d.decimalLongitude);
+                d.position = projection([d.decimalLongitude, d.decimalLatitude]);
+            });
+
+            let circles = map.selectAll("circle.numbat").data(numbats)
+                .join("circle")
+                .attr("class", "numbat")
+                .attr("r", 6)
+                .attr("cx", d => d.position[0])
+                .attr("cy", d => d.position[1])
+                .attr("opacity", 0.8)
+                .attr("fill", d => numbatColorScale(d.scientificName));
+
+            const drawBarChart = () => {
+                const barsSvg = d3.select('#bars');
+                const barMargin = { top: 10, right: 10, bottom: 70, left: 70 };
+                const chartWidth = barsSvg.attr("width") - barMargin.left - barMargin.right;
+                const chartHeight = barsSvg.attr("height") - barMargin.top - barMargin.bottom;
+                let annotations = barsSvg.append("g").attr("id", "annotations");
+                let chartArea = barsSvg.append("g").attr("id", "points")
+                    .attr("transform", `translate(${barMargin.left},${barMargin.top})`);
+
+                // Pre-process numbats with valid months
+                const validSeasonNumbats = numbats.filter(d => d.month != "NA");
+                const seasonMap = {
+                    "Jun": "summer", "Jul": "summer", "Aug": "summer", "Sep": "autumn", "Oct": "autumn", "Nov": "autumn",
+                    "Dec": "winter", "Jan": "winter", "Feb": "winter", "Mar": "spring", "Apr": "spring", "May": "spring"
+                }
+                validSeasonNumbats.forEach(d => {
+                    d.season = seasonMap[d.month]
+                })
+                const seasons = ["summer", "autumn", "winter", "spring"]
+
+                // Scales for bar chart
+                const seasonScale = d3.scaleBand().domain(seasons).range([0, chartWidth]).padding(0.2);
+                const yScale = d3.scaleLinear().domain([0, 300]).range([chartHeight, 0]);
+
+                // Create stack dataset
+                const barDataMap = {};
+                seasons.forEach(d => {
+                    barDataMap[d] = Object.assign({}, ...numbatSpecies.map((x) => ({ [x]: 0 })))
+                });
+                validSeasonNumbats.forEach(d => {
+                    barDataMap[d.season][d.scientificName] = barDataMap[d.season][d.scientificName] + 1;
+                })
+                const barDataset = [];
+                for (var key in barDataMap) {
+                    barDataset.push({
+                        season: key,
+                        ...barDataMap[key]
+                    })
+                }
+
+                // Axes and gridlines
+                let leftAxis = d3.axisLeft(yScale);
+                let leftGridlines = d3.axisLeft(yScale)
+                    .tickSize(-chartWidth - 10)
+                    .tickFormat("");
+                annotations.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", `translate(${barMargin.left - 10},${barMargin.top})`)
+                    .call(leftAxis)
+                annotations.append("g")
+                    .attr("class", "y gridlines")
+                    .attr("transform", `translate(${barMargin.left - 10},${barMargin.top})`)
+                    .call(leftGridlines);
+
+                const iconMap = { summer: "☀️", winter: "❄️", spring: "🌸", autumn: "🍂" };
+                let bottomAxis = d3.axisBottom(seasonScale).tickFormat(d => iconMap[d]);
+                let bottomTicks = annotations.append("g").attr("class", "x axis")
+                    .attr("transform", `translate(${barMargin.left},${chartHeight + barMargin.top + 10})`)
+                    .call(bottomAxis);
+                bottomTicks.selectAll("text").attr("font-size", 22);
+
+                // Draw bars 
+                const stackGenerator = d3.stack().keys(numbatSpecies);
+                const stackData = stackGenerator(barDataset);
+
+                chartArea.selectAll("g").data(stackData)
+                    .enter().append("g")
+                    .attr("fill", d => numbatColorScale(d.key))
+                    .selectAll("rect")
+                    .data(d => d)
+                    .enter().append("rect")
+                    .attr("x", d => seasonScale(d.data.season))
+                    .attr("y", d => yScale(d[1]))
+                    .attr("height", d => yScale(d[0]) - yScale(d[1]))
+                    .attr("width", seasonScale.bandwidth())
+
+                // Axis labels
+                chartArea.append("text")
+                    .attr("class", "x label")
+                    .attr("text-anchor", "middle")
+                    .attr("x", chartWidth / 2)
+                    .attr("y", chartHeight + barMargin.bottom - 10)
+                    .text("Seasons");
+
+                chartArea.append("text")
+                    .attr("class", "y label")
+                    .attr("text-anchor", "middle")
+                    .attr("y", 15)
+                    .attr("dy", ".75em")
+                    .attr("transform", `rotate(-90) translate(${-chartHeight / 2},${-barMargin.left - 10})`)
+                    .text("Numbat Sighting Count");
+
+                const startY = 50;
+                const legend = d3.select("#legend");
+                numbatSpecies.forEach((d, i) => {
+                    legend.append("circle")
+                        .attr("cx", 50)
+                        .attr("cy", startY + 30 * i)
+                        .attr("r", 6)
+                        .attr("fill", numbatColorScale(d))
+
+                    let firstText = legend.append("text")
+                        .text(d)
+                        .attr("font-size", "16px")
+                        .attr("font-style", "italic")
+                        .attr("fill", numbatColorScale(d))
+                        .attr("x", 70)
+                        .attr("y", startY + 30 * i)
+                        .attr("alignment-baseline", "middle")
+                })
+            }
+            drawLineGraph = () => {
+                const linesSvg = d3.select("#lines");
+                const lmargins = { top: 10, bottom: 70, left: 70, right: 10 };
+                const lwidth = linesSvg.attr("width");
+                const lheight = linesSvg.attr("height");
+                const chartWidth = lwidth - lmargins.left - lmargins.right;
+                const chartHeight = lheight - lmargins.top - lmargins.bottom;
+                let lchartArea = linesSvg.append("g").attr("id", "line").attr("transform", `translate(${lmargins.left},${lmargins.top})`);
+
+                numbats.forEach((d, i) => {
+                    d['hour'] = d['hour'] == "NA" ? "NA" : Number(d['hour'])
+                })
+
+                var hourCounts = {
+                    0: 0,
+                    1: 0,
+                    2: 0,
+                    3: 0,
+                    4: 0,
+                    5: 0,
+                    6: 0,
+                    7: 0,
+                    8: 0,
+                    9: 0,
+                    10: 0,
+                    11: 0,
+                    12: 0,
+                    13: 0,
+                    14: 0,
+                    15: 0,
+                    16: 0,
+                    17: 0,
+                    18: 0,
+                    19: 0,
+                    20: 0,
+                    21: 0,
+                    22: 0,
+                    23: 0
+                };
+                // numbats here prob have to be changed to filtered data
+                numbats.forEach((d, i) => {
+                    hourCounts[d.hour] = hourCounts[d.hour] + 1;
+                })
+
+                var hours_mapped = Object.keys(hourCounts).map(i => {
+                    return {
+                        hour: Number(i),
+                        count: hourCounts[i]
+                    }
+                });
+                console.log("mapped", hours_mapped)
+
+                // grid lines + tick marks
+                const countExtent = d3.extent(Object.values(hourCounts));
+
+                const countScale = d3.scaleLinear().domain(countExtent).range([chartHeight, 0]);
+                const hourScale = d3.scaleLinear().domain([0, 23]).range([0, chartWidth]);
+
+                let yAxis = d3.axisLeft(countScale);
+                let yGridlines = d3.axisLeft(countScale)
+                    .tickSize(-chartWidth - 10)
+                    .tickFormat("");
+                linesSvg.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", `translate(${lmargins.left - 10},${lmargins.top})`)
+                    .call(yAxis);
+                linesSvg.append("g")
+                    .attr("class", "y gridlines")
+                    .attr("transform", `translate(${lmargins.left - 10},${lmargins.top})`)
+                    .call(yGridlines);
+
+                let xAxis = d3.axisBottom(hourScale);
+                let xGridlines = d3.axisBottom(hourScale)
+                    .tickSize(-chartHeight - 10)
+                    .tickFormat("");
+                linesSvg.append("g")
+                    .attr("class", "x axis")
+                    .attr("transform", `translate(${lmargins.left},${chartHeight + lmargins.top + 10})`,)
+                    .call(xAxis);
+                linesSvg.append("g")
+                    .attr("class", "x gridlines")
+                    .attr("transform", `translate(${lmargins.left},${chartHeight + lmargins.top + 10})`,)
+                    .call(xGridlines);
+
+                // line
+                lchartArea.append("path")
+                    .datum(Object.entries(hourCounts))
+                    .attr("fill", "none")
+                    .attr("stroke", "steelblue")
+                    .attr("stroke-width", 2)
+                    .attr("d", d3.line()
+                        .x(d => hourScale(d[0]))
+                        .y(d => countScale(d[1])));
+
+
+                // Axis labels
+                lchartArea.append("text")
+                    .attr("class", "x label")
+                    .attr("text-anchor", "middle")
+                    .attr("x", chartWidth / 2)
+                    .attr("y", chartHeight + lmargins.bottom - 10)
+                    .text("Hour of Day");
+
+                lchartArea.append("text")
+                    .attr("class", "y label")
+                    .attr("text-anchor", "middle")
+                    .attr("y", 15)
+                    .attr("dy", ".75em")
+                    .attr("transform", `rotate(-90) translate(${-chartHeight / 2},${-lmargins.left - 10})`)
+                    .text("Numbat Sighting Count");
+
+            }
+
+            // Set default summary text
+            defaultSummaryText();
+
+            // Draw bar chart 
+            drawBarChart();
+
+            // Draw Line graph
+            drawLineGraph();
         }
-      });
-      
-      // Map pre-processing
-      numbats = numbats.filter(d => d.decimalLatitude != "NA" && d.decimalLongitude != "NA");
-      numbats.forEach(d => {
-        d.decimalLatitude = Number(d.decimalLatitude);
-        d.decimalLongitude = Number(d.decimalLongitude);
-        d.position = projection([d.decimalLongitude, d.decimalLatitude]);
-      });
-      
-      let circles = map.selectAll("circle.numbat").data(numbats)
-      .join("circle")
-      .attr("class", "numbat")
-      .attr("r", 6)
-      .attr("cx", d => d.position[0])
-      .attr("cy", d => d.position[1])
-      .attr("opacity", 0.8)
-      .attr("fill", d => numbatColorScale(d.scientificName));
-      
-      const drawBarChart = () => {
-        const barsSvg = d3.select('#bars');
-        const barMargin = {top: 10, right: 10, bottom: 70, left: 100};
-        const chartWidth = barsSvg.attr("width") - barMargin.left - barMargin.right;
-        const chartHeight = barsSvg.attr("height") - barMargin.top - barMargin.bottom;
-        let annotations = barsSvg.append("g").attr("id", "annotations");
-        let chartArea = barsSvg.append("g").attr("id", "points")
-        .attr("transform",`translate(${barMargin.left},${barMargin.top})`);
-        
-        // Pre-process numbats with valid months
-        const validSeasonNumbats = numbats.filter(d => d.month != "NA");
-        const seasonMap = { "Jun": "summer", "Jul": "summer", "Aug": "summer", "Sep": "autumn", "Oct": "autumn", "Nov": "autumn",
-        "Dec": "winter", "Jan": "winter", "Feb": "winter", "Mar": "spring", "Apr": "spring", "May": "spring"}
-        validSeasonNumbats.forEach(d => {
-          d.season = seasonMap[d.month]
-        })
-        const seasons = ["summer", "autumn", "winter", "spring"]
-        
-        // Scales for bar chart
-        const seasonScale = d3.scaleBand().domain(seasons).range([0, chartWidth]).padding(0.2);
-        const yScale = d3.scaleLinear().domain([0, 300]).range([chartHeight, 0]);
-        
-        // Create stack dataset
-        const barDataMap = {};
-        seasons.forEach(d => {
-          barDataMap[d] = Object.assign({}, ...numbatSpecies.map((x) => ({ [x]: 0} )))
-        });
-        validSeasonNumbats.forEach(d => {
-          barDataMap[d.season][d.scientificName] = barDataMap[d.season][d.scientificName] + 1;
-        })
-        const barDataset = [];
-        for (var key in barDataMap) {
-          barDataset.push({
-            season: key, 
-            ...barDataMap[key]
-          })
-        }
-        
-        // Axes and gridlines
-        let leftAxis = d3.axisLeft(yScale);
-        let leftGridlines = d3.axisLeft(yScale)
-        .tickSize(-chartWidth-10)
-        .tickFormat("");
-        annotations.append("g")
-        .attr("class", "y axis")
-        .attr("transform",`translate(${barMargin.left-10},${barMargin.top})`)
-        .call(leftAxis)
-        annotations.append("g")
-        .attr("class", "y gridlines")
-        .attr("transform",`translate(${barMargin.left-10},${barMargin.top})`)
-        .call(leftGridlines);
-        
-        const iconMap = { summer: "☀️", winter: "❄️", spring: "🌸", autumn: "🍂"};
-        let bottomAxis = d3.axisBottom(seasonScale).tickFormat(d => iconMap[d]);
-        let bottomTicks = annotations.append("g").attr("class", "x axis")
-        .attr("transform",`translate(${barMargin.left},${chartHeight+barMargin.top+10})`)
-        .call(bottomAxis);
-        bottomTicks.selectAll("text").attr("font-size", 22);
-        
-        // Draw bars 
-        const stackGenerator = d3.stack().keys(numbatSpecies);
-        const stackData = stackGenerator(barDataset);
-        
-        chartArea.selectAll("g").data(stackData)
-        .enter().append("g")
-        .attr("fill", d => numbatColorScale(d.key))
-        .selectAll("rect")
-        .data(d => d)
-        .enter().append("rect")
-        .attr("x", d => seasonScale(d.data.season))
-        .attr("y", d => yScale(d[1]))
-        .attr("height", d => yScale(d[0]) - yScale(d[1]))
-        .attr("width", seasonScale.bandwidth())
-        
-        // Axis labels
-        chartArea.append("text")
-        .attr("class", "x label")
-        .attr("text-anchor", "middle")
-        .attr("x", chartWidth / 2)
-        .attr("y", chartHeight + barMargin.bottom - 10)
-        .text("Seasons");
-        
-        chartArea.append("text")
-        .attr("class", "y label")
-        .attr("text-anchor", "middle")
-        .attr("y", 15)
-        .attr("dy", ".75em")
-        .attr("transform", `rotate(-90) translate(${-chartHeight / 2},${-barMargin.left + 20})`)
-        .text("Numbat Count");
-        
-        const startY = 50;
-        const legend = d3.select("#legend");
-        numbatSpecies.forEach((d, i) => {
-          legend.append("circle")
-          .attr("cx", 50)
-          .attr("cy", startY + 30 * i)
-          .attr("r", 6)
-          .attr("fill", numbatColorScale(d))
-          
-          let firstText = legend.append("text")
-          .text(d)
-          .attr("font-size", "16px")
-          .attr("font-style", "italic")
-          .attr("fill", numbatColorScale(d))
-          .attr("x", 70)
-          .attr("y", startY + 30 * i)
-          .attr("alignment-baseline","middle")
-        })
-      }
-      drawLineGraph = () => {
-        const linesSvg = d3.select("#lines");
-        const lmargins = {top: 10, bottom: 50, left: 50, right: 10};
-        const lwidth = linesSvg.attr("width");
-        const lheight = linesSvg.attr("height");
-        const chartWidth = lwidth - lmargins.left - lmargins.right;
-        const chartHeight = lheight - lmargins.top - lmargins.bottom;
-        let lchartArea = linesSvg.append("g").attr("id", "line").attr("transform", `translate(${lmargins.left},${lmargins.top})`);
-        
-        numbats.forEach( (d, i) => {
-          d['hour'] = d['hour'] == "NA" ? "NA": Number(d['hour'])
-        })
-        
-        var hourCounts = { 
-          0: 0, 
-          1: 0, 
-          2: 0,
-          3: 0, 
-          4: 0, 
-          5: 0,
-          6: 0, 
-          7: 0, 
-          8: 0,
-          9: 0, 
-          10: 0, 
-          11: 0,
-          12: 0,
-          13: 0, 
-          14: 0, 
-          15: 0,
-          16: 0, 
-          17: 0, 
-          18: 0,
-          19: 0, 
-          20: 0, 
-          21: 0,
-          22: 0, 
-          23: 0
-        };
-        // numbats here prob have to be changed to filtered data
-        numbats.forEach( (d, i) => {
-          hourCounts[d.hour] = hourCounts[d.hour] + 1;
-        })
-        
-        var hours_mapped = Object.keys(hourCounts).map(i => {
-          return {
-            hour: Number(i),
-            count: hourCounts[i]
-          }
-        });
-        console.log("mapped", hours_mapped)
-        
-        // grid lines + tick marks
-        const countExtent = d3.extent(Object.values(hourCounts));
-        
-        const countScale = d3.scaleLinear().domain(countExtent).range([chartHeight,0]);
-        const hourScale = d3.scaleLinear().domain([0,23]).range([0,chartWidth]);
-        
-        let yAxis = d3.axisLeft(countScale);
-        let yGridlines = d3.axisLeft(countScale)
-        .tickSize(-chartWidth-10)
-        .tickFormat("");
-        linesSvg.append("g")
-        .attr("class", "y axis")
-        .attr("transform",`translate(${lmargins.left-10},${lmargins.top})`)
-        .call(yAxis);
-        linesSvg.append("g")
-        .attr("class", "y gridlines")
-        .attr("transform",`translate(${lmargins.left-10},${lmargins.top})`)
-        .call(yGridlines);
-        
-        let xAxis = d3.axisBottom(hourScale);
-        let xGridlines = d3.axisBottom(hourScale)
-        .tickSize(-chartHeight-10)
-        .tickFormat("");
-        linesSvg.append("g")
-        .attr("class", "x axis")
-        .attr("transform",`translate(${lmargins.left},${chartHeight+lmargins.top+10})`,)
-        .call(xAxis);
-        linesSvg.append("g")
-        .attr("class", "x gridlines")
-        .attr("transform",`translate(${lmargins.left},${chartHeight+lmargins.top+10})`,)
-        .call(xGridlines);
-        
-        // line
-        lchartArea.append("path")
-        .datum(Object.entries(hourCounts))
-        .attr("fill", "none")
-        .attr("stroke", "steelblue")
-        .attr("stroke-width", 2)
-        .attr("d", d3.line()
-          .x(d => hourScale(d[0]))
-          .y(d => countScale(d[1])));
-        
-      }
-      
-      // Set default summary text
-      defaultSummaryText();
-      
-      // Draw bar chart 
-      drawBarChart();
-      
-      // Draw Line graph
-      drawLineGraph();
-    }
-    drawPlot();
-  </script>
-  
+        drawPlot();
+    </script>
+
 </body>
 
 </html>
