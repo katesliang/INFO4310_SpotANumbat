@@ -107,10 +107,6 @@
             font-family: SFPro-Bold;
             margin: 5px;
         }
-
-        #minimap-rect {
-            border-radius: 10px;
-        }
     </style>
 
 </head>
@@ -577,7 +573,7 @@
                 d.position = projection([d.decimalLongitude, d.decimalLatitude]);
             });
 
-            let circles = map.selectAll("circle.numbat").data(filteredNumbats)
+            let circles = viewport.selectAll("circle.numbat").data(filteredNumbats)
                 .join("circle")
                 .attr("class", "numbat")
                 .attr("r", 5)
