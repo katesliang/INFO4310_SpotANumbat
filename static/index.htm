@@ -135,7 +135,7 @@
             <svg id="summary-text" height="100" width="600"></svg>
         </div>
         <div id="col-3">
-            <h2>Overview</h2>
+            <h2>Overview (Per Region)</h2>
             <svg id="bars" height="300" width="300"></svg>
             <svg id="lines" height="300" width="300"></svg>
         </div>
@@ -149,6 +149,7 @@
             const numbatSpecies = [... new Set(numbats.map(d => d.scientificName))];
             var selectedState;
             var selectedStateData;
+            var relevantNumbats = numbats;
 
             // Scales 
             const numbatColorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(numbatSpecies);
@@ -251,6 +252,8 @@
                             numbatColorScale(d.scientificName) : "#dad7cd")
             }
 
+            console.log(map.selectAll("path.state"))
+
             let statePaths = map.selectAll("path.state").data(australia.features)
                 .join("path")
                 .attr("class", "state")
@@ -265,7 +268,7 @@
                         selectedState = d3.select(this);
                         selectedState.attr("fill", "#ccd5ae");
                         selectedStateData = d;
-                        let relevantNumbats = getRelevantNumbats()
+                        relevantNumbats = getRelevantNumbats()
                         updateSummaryText(relevantNumbats);
                         updateCircleColors(relevantNumbats)
                     } else if (selectedStateData === d) {
@@ -282,7 +285,27 @@
                         selectedStateData = d;
                         let relevantNumbats = getRelevantNumbats()
                         updateSummaryText(relevantNumbats);
-                        updateCircleColors(relevantNumbats)
+                        updateCircleColors(relevantNumbats);
+                        drawBarChart();
+                        drawLineGraph();
+                    }
+                }).on("mouseover", function (e, d) {
+                    d3.select(this)
+                        .transition()
+                        .duration(100)
+                        .attr("fill", "#ccd5ae");
+                })
+                .on("mouseout", function (e, d) {
+                    if (selectedState == null || selectedStateData.properties.STATE_NAME != d.properties.STATE_NAME) {
+                        d3.select(this)
+                            .transition()
+                            .duration(100)
+                            .attr("fill", "#EEE");
+                    } else {
+                        d3.select(this)
+                            .transition()
+                            .duration(100)
+                            .attr("fill", "#ccd5ae");
                     }
                 });
 
@@ -313,7 +336,7 @@
                     .attr("transform", `translate(${barMargin.left},${barMargin.top})`);
 
                 // Pre-process numbats with valid months
-                const validSeasonNumbats = numbats.filter(d => d.month != "NA");
+                const validSeasonNumbats = relevantNumbats.filter(d => d.month != "NA");
                 const seasonMap = {
                     "Jun": "summer", "Jul": "summer", "Aug": "summer", "Sep": "autumn", "Oct": "autumn", "Nov": "autumn",
                     "Dec": "winter", "Jan": "winter", "Feb": "winter", "Mar": "spring", "Apr": "spring", "May": "spring"
@@ -508,7 +531,6 @@
                         .x(d => hourScale(d[0]))
                         .y(d => countScale(d[1])));
 
-
                 // Axis labels
                 lchartArea.append("text")
                     .attr("class", "x label")
@@ -524,7 +546,6 @@
                     .attr("dy", ".75em")
                     .attr("transform", `rotate(-90) translate(${-chartHeight / 2},${-lmargins.left - 10})`)
                     .text("Numbat Sighting Count");
-
             }
 
             // Set default summary text
