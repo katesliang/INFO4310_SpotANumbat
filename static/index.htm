@@ -202,6 +202,67 @@
 
             let clickedSections = [];
             let filteredNumbats = numbats;
+
+            function filter(activeFilters){
+                map.selectAll("circle.numbat").remove();
+                pointArea.selectAll("circle.numbat").remove();
+
+                // Get all filtered data by season
+                if (activeFilters.length == 0) {
+                    filteredNumbats = numbats;
+                } else {
+                    filteredNumbats = numbats.filter(function (d) {
+                        for (let i = 0; i < activeFilters.length; i++) {
+                            if (d.season == activeFilters[i]) {
+                                return true
+                            }
+                        }
+                        return false
+                    });
+                }
+
+                console.log(filteredNumbats)
+
+                // Get all updated relevant numbats in coordinates
+                if(selectedState != null){
+                    relevantNumbats = getRelevantNumbats()
+                } else{
+                    relevantNumbats = numbats
+                }
+                updateCircleColors(relevantNumbats)
+
+                console.log(relevantNumbats)
+
+                summaryData = filteredNumbats.filter(item => relevantNumbats.includes(item))
+
+                let circles = viewport.selectAll("circle.numbat")
+                    .data(summaryData)
+                    .enter()
+                    .append("circle")
+                    .attr("class", "numbat")
+                    .attr("r", 6)
+                    .attr("cx", d => d.position[0])
+                    .attr("cy", d => d.position[1])
+                    .attr("opacity", 0.8)
+                    .attr("fill", "#7DB0FE");
+
+                pointArea.selectAll("circle.numbat").data(summaryData)
+                    .join("circle")
+                    .attr("class", "numbat")
+                    .attr("r", 3)
+                    .attr("cx", d => {
+                        return minimapProjection([d.decimalLongitude, d.decimalLatitude])[0]
+                    })
+                    .attr("cy", d => {
+                        return minimapProjection([d.decimalLongitude, d.decimalLatitude])[1]
+                    })
+                    .attr("opacity", 0.8)
+                    .attr("fill", d => "#7DB0FE");
+
+                clearSummaryText(summaryData)
+                updateSummaryText(summaryData)
+            }
+
             sections.on("click", function () {
                 if (!clickedSections.includes(this.id)) {
                     d3.select(this)
@@ -221,50 +282,52 @@
                         .attr("fill", "gray");
                 }
 
-                if (clickedSections.length == 0) {
-                    filteredNumbats = numbats;
-                } else {
-                    filteredNumbats = numbats.filter(function (d) {
-                        for (let i = 0; i < clickedSections.length; i++) {
-                            if (d.season == clickedSections[i]) {
-                                return true
-                            }
-                        }
-                        return false
-                    });
-                }
+                filter(clickedSections)
 
-                map.selectAll("circle.numbat").remove();
-                pointArea.selectAll("circle.numbat").remove();
+                // if (clickedSections.length == 0) {
+                //     filteredNumbats = numbats;
+                // } else {
+                //     filteredNumbats = numbats.filter(function (d) {
+                //         for (let i = 0; i < clickedSections.length; i++) {
+                //             if (d.season == clickedSections[i]) {
+                //                 return true
+                //             }
+                //         }
+                //         return false
+                //     });
+                // }
 
-                let circles = viewport.selectAll("circle.numbat")
-                    .data(filteredNumbats)
-                    .enter()
-                    .append("circle")
-                    .attr("class", "numbat")
-                    .attr("r", 6)
-                    .attr("cx", d => d.position[0])
-                    .attr("cy", d => d.position[1])
-                    .attr("opacity", 0.8)
-                    .attr("fill", "#7DB0FE");
+                // map.selectAll("circle.numbat").remove();
+                // pointArea.selectAll("circle.numbat").remove();
 
-                pointArea.selectAll("circle.numbat").data(filteredNumbats)
-                    .join("circle")
-                    .attr("class", "numbat")
-                    .attr("r", 3)
-                    .attr("cx", d => {
-                        return minimapProjection([d.decimalLongitude, d.decimalLatitude])[0]
-                    })
-                    .attr("cy", d => {
-                        return minimapProjection([d.decimalLongitude, d.decimalLatitude])[1]
-                    })
-                    .attr("opacity", 0.8)
-                    .attr("fill", d => "#7DB0FE");
+                // let circles = viewport.selectAll("circle.numbat")
+                //     .data(filteredNumbats)
+                //     .enter()
+                //     .append("circle")
+                //     .attr("class", "numbat")
+                //     .attr("r", 6)
+                //     .attr("cx", d => d.position[0])
+                //     .attr("cy", d => d.position[1])
+                //     .attr("opacity", 0.8)
+                //     .attr("fill", "#7DB0FE");
+
+                // pointArea.selectAll("circle.numbat").data(filteredNumbats)
+                //     .join("circle")
+                //     .attr("class", "numbat")
+                //     .attr("r", 3)
+                //     .attr("cx", d => {
+                //         return minimapProjection([d.decimalLongitude, d.decimalLatitude])[0]
+                //     })
+                //     .attr("cy", d => {
+                //         return minimapProjection([d.decimalLongitude, d.decimalLatitude])[1]
+                //     })
+                //     .attr("opacity", 0.8)
+                //     .attr("fill", d => "#7DB0FE");
                 
-                clearSummaryText()
-                const australiaSightingTime = getSightingTime(filteredNumbats);
-                const australiaWeather = getWeather(filteredNumbats)
-                setSummaryText(australiaSightingTime, australiaWeather, "Australia", filteredNumbats.length);
+                // clearSummaryText()
+                // const australiaSightingTime = getSightingTime(filteredNumbats);
+                // const australiaWeather = getWeather(filteredNumbats)
+                // setSummaryText(australiaSightingTime, australiaWeather, "Australia", filteredNumbats.length);
             });
 
             // Draw map
@@ -407,7 +470,7 @@
             const getRelevantNumbats = () => {
                 let relevantNumbats = [];
                 let coordinates = selectedStateData.geometry.coordinates;
-                filteredNumbats.forEach(numbat => {
+                numbats.forEach(numbat => {
                     let point = [numbat.decimalLongitude, numbat.decimalLatitude];
                     for (let i = 0; i < coordinates.length; i++) {
                         if (d3.polygonContains(coordinates[i][0], point)) {
@@ -424,8 +487,12 @@
                 let sightingTime = getSightingTime(relevantNumbats);
                 // Get most popular weather
                 getWeather(relevantNumbats);
-                let sightingWeather = getWeather(relevantNumbats); // TODO -- replace with actual weather 
-                setSummaryText(sightingTime, sightingWeather, selectedStateData.properties.STATE_NAME, relevantNumbats.length);
+                let sightingWeather = getWeather(relevantNumbats); 
+                let name = "Australia";
+                if(selectedState != null){
+                    name = selectedStateData.properties.STATE_NAME
+                }
+                setSummaryText(sightingTime, sightingWeather, name, relevantNumbats.length);
             }
 
             const defaultSummaryText = () => {
@@ -463,15 +530,14 @@
                         selectedState = d3.select(this);
                         selectedState.attr("fill", "#ccd5ae");
                         selectedStateData = d;
-                        relevantNumbats = getRelevantNumbats()
-                        updateSummaryText(relevantNumbats);
-                        updateCircleColors(relevantNumbats)
+                        filter(clickedSections)
                     } else if (selectedStateData === d) {
                         // de-select
                         selectedState.attr("fill", "#EEE");
                         selectedState = null;
                         clearSummaryText();
                         updateCircleColors(filteredNumbats);
+                        filter(clickedSections)
                     } else {
                         // select
                         selectedState.attr("fill", "#EEE");
@@ -481,6 +547,7 @@
                         let relevantNumbats = getRelevantNumbats()
                         updateSummaryText(relevantNumbats);
                         updateCircleColors(relevantNumbats);
+                        filter(clickedSections)
                     }
                 }).on("mouseover", function (e, d) {
                     d3.select(this)
