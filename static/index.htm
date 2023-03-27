@@ -128,7 +128,9 @@
                 <h2>Instructions</h2>
                 <p>Use the filters to filter through certain species.</p>
             </div>
-            <div id="filters"></div>
+            <div id="filters">
+                <svg id="seasons" width="200" height="300"></svg>
+            </div>
         </div>
         <div id="col-2">
             <svg id="australia-map" height="500" width="600"></svg>
@@ -143,13 +145,108 @@
     <script>
         const drawPlot = async () => {
             // Load data
-            var numbats = await d3.csv('./numbats.csv');
+            var numbats = await d3.csv('data.csv');
             console.log(numbats);
             const australia = await d3.json('./austrailian.states.geojson');
             const numbatSpecies = [... new Set(numbats.map(d => d.scientificName))];
             var selectedState;
             var selectedStateData;
             var relevantNumbats = numbats;
+
+            // Filtering by Seasons
+            const filterData = [
+                { id: "winter", class: "season", image: "images/winter.png", startAngle: 0, endAngle: Math.PI / 2},
+                { id: "spring", class: "season", image: "images/spring.png", startAngle: Math.PI / 2, endAngle: Math.PI, x: -50, y: -100},
+                { id: "summer", class: "season", image: "images/summer.png", startAngle: Math.PI, endAngle: Math.PI * 1.5, x: -100, y: -50},
+                { id: "fall", class: "season", image: "images/fall.png", startAngle: Math.PI * 1.5, endAngle: Math.PI * 2, x: -10, y: -10},
+            ];
+
+            const section = d3.arc()
+                .innerRadius(0)
+                .outerRadius(100)
+                .startAngle(d => d.startAngle)
+                .endAngle(d => d.endAngle)
+                .padAngle(0.05)
+                .padRadius(100)
+                .cornerRadius(4);
+
+            var filters = d3.select("#seasons")
+
+            const sections = filters.selectAll("g")
+                .data(filterData)
+                .enter()
+                .append("g")
+                .attr("id", d => d.id)
+                .attr("class", d => d.class)
+                .attr("transform", `translate(100, 170)`)
+
+            sections.append("path")
+                .attr("d", section)
+                .attr("fill", "gray")
+                .attr("stroke", "white");
+
+            sections.append("image")
+                .attr("xlink:href", d => d.image)
+                .attr("width", 70)
+                .attr("height", 70)
+                .attr("transform", d => {
+                    const [x, y] = section.centroid(d);
+                    return `translate(${x - 35}, ${y - 35})`;
+                })
+                .raise();
+
+            let clickedSections = [];
+            let filteredNumbats = numbats;
+            sections.on("click", function() {
+                if (!clickedSections.includes(this.id)) { 
+                    d3.select(this)
+                        .select("path")
+                        .attr("fill", "orange");
+                    clickedSections.push(this.id); 
+                } else {
+                    newArr = [];
+                    for (let i = 0; i < clickedSections.length; i++) {
+                        if (clickedSections[i] !== this.id) {
+                            newArr.push(clickedSections[i]);
+                        }
+                    }
+                    clickedSections = newArr
+                    d3.select(this)
+                        .select("path")
+                        .attr("fill", "gray");
+                }
+
+                if (clickedSections.length == 0) {
+                    filteredNumbats = numbats;
+                } else {
+                    filteredNumbats = numbats.filter(function (d) {
+                        for (let i = 0; i < clickedSections.length; i++) {
+                            if (d.season == clickedSections[i]) {
+                                return true
+                            }
+                        }
+                        return false
+                    });
+                }
+
+                map.selectAll("circle.numbat").remove();
+
+                let circles = map.selectAll("circle.numbat")
+                    .data(filteredNumbats)
+                    .enter()
+                    .append("circle")
+                    .attr("class", "numbat")
+                    .attr("r", 6)
+                    .attr("cx", d => d.position[0])
+                    .attr("cy", d => d.position[1])
+                    .attr("opacity", 0.8)
+                    .attr("fill", d => numbatColorScale(d.scientificName));
+                
+                clearSummaryText()
+                const australiaSightingTime = getSightingTime(filteredNumbats);
+                const australiaWeather = "cloudy"; // TODO -- replace with actual weather for all of australia
+                setSummaryText(australiaSightingTime, australiaWeather, "Australia", filteredNumbats.length);
+            });
 
             // Scales 
             const numbatColorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(numbatSpecies);
@@ -211,7 +308,7 @@
             const getRelevantNumbats = () => {
                 let relevantNumbats = [];
                 let coordinates = selectedStateData.geometry.coordinates;
-                numbats.forEach(numbat => {
+                filteredNumbats.forEach(numbat => {
                     let point = [numbat.decimalLongitude, numbat.decimalLatitude];
                     for (let i = 0; i < coordinates.length; i++) {
                         if (d3.polygonContains(coordinates[i][0], point)) {
@@ -276,7 +373,7 @@
                         selectedState.attr("fill", "#EEE");
                         selectedState = null;
                         clearSummaryText();
-                        updateCircleColors(numbats);
+                        updateCircleColors(filteredNumbats);
                     } else {
                         // select
                         selectedState.attr("fill", "#EEE");
@@ -317,7 +414,7 @@
                 d.position = projection([d.decimalLongitude, d.decimalLatitude]);
             });
 
-            let circles = map.selectAll("circle.numbat").data(numbats)
+            let circles = map.selectAll("circle.numbat").data(filteredNumbats)
                 .join("circle")
                 .attr("class", "numbat")
                 .attr("r", 6)
