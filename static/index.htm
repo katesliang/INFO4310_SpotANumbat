@@ -74,7 +74,6 @@
             background: white;
             border-radius: 25px;
             padding: 20px;
-            height: 300px;
             margin: 10px;
             margin-top: 20px;
             box-shadow: -10px 10px rgb(207, 207, 207);
@@ -126,7 +125,9 @@
         <div id="col-1">
             <div id="instructions">
                 <h2>Instructions</h2>
-                <p>Use the filters to filter through certain species.</p>
+                <p>Use the buttons below to select certain seasons.</p>
+                <p>Click on a map region to narrow down on location.</p>
+                <p>The summary will update according to the filters chosen.</p>
             </div>
             <div id="filters">
                 <svg id="seasons" width="200" height="300"></svg>
@@ -143,7 +144,7 @@
             </svg>
         </div>
         <div id="col-3">
-            <h2>Overview (Per Region)</h2>
+            <h2>Overview</h2>
             <svg id="bars" height="300" width="300"></svg>
             <svg id="lines" height="300" width="300"></svg>
         </div>
@@ -152,23 +153,10 @@
         const drawPlot = async () => {
             // Load data
             var numbats = await d3.csv('./data.csv')
-            console.log(numbats);
             const australia = await d3.json('./austrailian.states.geojson');
             var selectedState;
             var selectedStateData;
             var relevantNumbats = numbats;
-
-            // Pre-process numbats with valid months
-            const validSeasonNumbats = relevantNumbats.filter(d => d.month != "NA");
-            const seasonMap = {
-                "Jun": "summer", "Jul": "summer", "Aug": "summer", "Sep": "autumn", "Oct": "autumn", "Nov": "autumn",
-                "Dec": "winter", "Jan": "winter", "Feb": "winter", "Mar": "spring", "Apr": "spring", "May": "spring"
-            }
-            validSeasonNumbats.forEach(d => {
-                d.season = seasonMap[d.month]
-            })
-            const seasons = ["summer", "autumn", "winter", "spring"]
-
 
             // Filtering by Seasons
             const filterData = [
@@ -340,7 +328,6 @@
                 // Seasons
                 if (clickedSections.length == 0 || clickedSections.length == 4) {
                     textData[0].push({ text: 'year-round', color: highlightColor }, { text: ".", color: 'black' })
-                    console.log(textData[0])
                 } else if (clickedSections.length == 1) {
                     textData[0].push({ text: " in the ", color: 'black' }, { text: `${clickedSections[0]}`, color: highlightColor },
                         { text: ".", color: 'black' })
@@ -391,7 +378,6 @@
 
             const getWeather = (relevantNumbats) => {
                 const numbatWeather = relevantNumbats.filter(d => d.WeatherCondition != "").map(d => d.WeatherCondition);
-                console.log(numbatWeather)
                 if (numbatWeather.length == 0) return "";
                 let weatherMap = {};
                 numbatWeather.forEach(w => {
@@ -481,8 +467,6 @@
                         let relevantNumbats = getRelevantNumbats()
                         updateSummaryText(relevantNumbats);
                         updateCircleColors(relevantNumbats);
-                        //drawBarChart();
-                        //drawLineGraph();
                     }
                 }).on("mouseover", function (e, d) {
                     d3.select(this)
@@ -601,24 +585,34 @@
                 let chartArea = barsSvg.append("g").attr("id", "points")
                     .attr("transform", `translate(${barMargin.left},${barMargin.top})`);
 
+                // Pre-process numbats with valid months
+                const validSeasonNumbats = numbats.filter(d => d.month != "NA" && d.month != '');
+
+                const seasonMap = {
+                    "Jun": "summer", "Jul": "summer", "Aug": "summer", "Sep": "autumn", "Oct": "autumn", "Nov": "autumn",
+                    "Dec": "winter", "Jan": "winter", "Feb": "winter", "Mar": "spring", "Apr": "spring", "May": "spring"
+                }
+                validSeasonNumbats.forEach(d => {
+                    d.season = seasonMap[d.month]
+                })
+                const seasons = ["summer", "autumn", "winter", "spring"]
+
                 // Scales for bar chart
                 const seasonScale = d3.scaleBand().domain(seasons).range([0, chartWidth]).padding(0.2);
                 const yScale = d3.scaleLinear().domain([0, 300]).range([chartHeight, 0]);
-
                 // Create stack dataset
                 const barDataMap = {};
                 seasons.forEach(d => {
-                    barDataMap[d] = Object.assign({}, ...numbatSpecies.map((x) => ({ [x]: 0 })))
+                    barDataMap[d] = 0
                 });
+
                 validSeasonNumbats.forEach(d => {
-                    barDataMap[d.season][d.scientificName] = barDataMap[d.season][d.scientificName] + 1;
+                    barDataMap[d.season] = barDataMap[d.season] + 1;
                 })
-                const barDataset = [];
-                for (var key in barDataMap) {
-                    barDataset.push({
-                        season: key,
-                        ...barDataMap[key]
-                    })
+
+                var shapedData = []
+                for (let key in barDataMap) {
+                    shapedData.push({ title: key, value: barDataMap[key] })
                 }
 
                 // Axes and gridlines
@@ -643,19 +637,15 @@
                 bottomTicks.selectAll("text").attr("font-size", 22);
 
                 // Draw bars 
-                const stackGenerator = d3.stack().keys(numbatSpecies);
-                const stackData = stackGenerator(barDataset);
-
-                chartArea.selectAll("g").data(stackData)
-                    .enter().append("g")
-                    .attr("fill", d => numbatColorScale(d.key))
-                    .selectAll("rect")
-                    .data(d => d)
+                chartArea.selectAll(".bar")
+                    .data(shapedData)
                     .enter().append("rect")
-                    .attr("x", d => seasonScale(d.data.season))
-                    .attr("y", d => yScale(d[1]))
-                    .attr("height", d => yScale(d[0]) - yScale(d[1]))
+                    .attr("class", "bar")
+                    .attr("x", function (d) { return seasonScale(d.title); })
+                    .attr("y", function (d) { return yScale(d.value); })
                     .attr("width", seasonScale.bandwidth())
+                    .attr("height", d => chartHeight - yScale(d.value))
+                    .attr("fill", "steelblue")
 
                 // Axis labels
                 chartArea.append("text")
@@ -714,7 +704,7 @@
                     23: 0
                 };
                 // numbats here prob have to be changed to filtered data
-                numbats.forEach((d, i) => {
+                filteredNumbats.forEach((d, i) => {
                     hourCounts[d.hour] = hourCounts[d.hour] + 1;
                 })
 
@@ -724,7 +714,6 @@
                         count: hourCounts[i]
                     }
                 });
-                console.log("mapped", hours_mapped)
 
                 // grid lines + tick marks
                 const countExtent = d3.extent(Object.values(hourCounts));
@@ -789,10 +778,10 @@
             defaultSummaryText();
 
             // Draw bar chart 
-            //drawBarChart();
+            drawBarChart();
 
             // Draw Line graph
-            //drawLineGraph();
+            drawLineGraph();
         }
         drawPlot();
     </script>
