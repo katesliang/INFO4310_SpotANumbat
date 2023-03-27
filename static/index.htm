@@ -301,7 +301,6 @@
             const mapHeight = mapSvg.attr("height") - mapMargin.top - mapMargin.bottom;
             const map = mapSvg.append("g").attr("transform", `${mapMargin.left}, ${mapMargin.top}`);
 
-            // main chart region
             map.append("defs").append("clipPath")
                 .attr("id", "chartClip")
                 .append("rect")
@@ -312,13 +311,11 @@
                 .attr("height", mapHeight);
             map.attr("clip-path", "url(#chartClip)");
 
-            // Interactive Surface Layer
             map.append("rect").attr("x", 0).attr("y", 0)
                 .attr("width", mapWidth).attr("height", mapHeight)
                 .attr("fill", "none")
                 .style("pointer-events", "all")
 
-            // Pan-zoom handler
             let zoomExtent = [[0, 0], [mapWidth, mapHeight]];
             let translateExtent = [[-100, -100], [mapWidth + 100, mapHeight + 100]];
             var plotZoom = d3.zoom()
@@ -327,11 +324,8 @@
                 .scaleExtent([1, 10])
                 .on("zoom", plotZoomed);
 
-            // then add the zoom handler
             map.call(plotZoom);
 
-            // composing the minimap
-            // first, a teeny tiny version of the scatterplot
             let viewport = map.append("g");
 
             const minimap = d3.select("#australia-map #minimap");
@@ -610,10 +604,8 @@
 
                 let transform = d3.zoomTransform(map.node());
 
-                // need to convert back to plotZoom's coordinate space 
                 let corner = [minimapXScale.invert(selection[0][0]), minimapYScale.invert(selection[0][1])];
 
-                // modify the transform
                 transform.x = -corner[0] * transform.k;
                 transform.y = -corner[1] * transform.k;
 
