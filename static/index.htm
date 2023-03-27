@@ -128,7 +128,9 @@
                 <h2>Instructions</h2>
                 <p>Use the filters to filter through certain species.</p>
             </div>
-            <div id="filters"></div>
+            <div id="filters">
+                <svg id="seasons" width="200" height="300"></svg>
+            </div>
         </div>
         <div id="col-2">
             <svg id="summary-text" height="100" width="600"></svg>
@@ -149,13 +151,119 @@
     <script>
         const drawPlot = async () => {
             // Load data
-            var numbats = await d3.csv('./numbats.csv');
-            var numbatsWithWeather = await d3.csv('./data.csv')
-            console.log(numbatsWithWeather);
+            var numbats = await d3.csv('./data.csv')
+            console.log(numbats);
             const australia = await d3.json('./austrailian.states.geojson');
             var selectedState;
             var selectedStateData;
-            var relevantNumbats = numbatsWithWeather;
+            var relevantNumbats = numbats;
+
+            // Pre-process numbats with valid months
+            const validSeasonNumbats = relevantNumbats.filter(d => d.month != "NA");
+                const seasonMap = {
+                    "Jun": "summer", "Jul": "summer", "Aug": "summer", "Sep": "autumn", "Oct": "autumn", "Nov": "autumn",
+                    "Dec": "winter", "Jan": "winter", "Feb": "winter", "Mar": "spring", "Apr": "spring", "May": "spring"
+                }
+                validSeasonNumbats.forEach(d => {
+                    d.season = seasonMap[d.month]
+                })
+                const seasons = ["summer", "autumn", "winter", "spring"]
+
+
+            // Filtering by Seasons
+            const filterData = [
+                { id: "winter", class: "season", image: "images/winter.png", startAngle: 0, endAngle: Math.PI / 2},
+                { id: "spring", class: "season", image: "images/spring.png", startAngle: Math.PI / 2, endAngle: Math.PI, x: -50, y: -100},
+                { id: "summer", class: "season", image: "images/summer.png", startAngle: Math.PI, endAngle: Math.PI * 1.5, x: -100, y: -50},
+                { id: "fall", class: "season", image: "images/fall.png", startAngle: Math.PI * 1.5, endAngle: Math.PI * 2, x: -10, y: -10},
+            ];
+
+            const section = d3.arc()
+                .innerRadius(0)
+                .outerRadius(100)
+                .startAngle(d => d.startAngle)
+                .endAngle(d => d.endAngle)
+                .padAngle(0.05)
+                .padRadius(100)
+                .cornerRadius(4);
+
+            var filters = d3.select("#seasons")
+
+            const sections = filters.selectAll("g")
+                .data(filterData)
+                .enter()
+                .append("g")
+                .attr("id", d => d.id)
+                .attr("class", d => d.class)
+                .attr("transform", `translate(100, 170)`)
+
+            sections.append("path")
+                .attr("d", section)
+                .attr("fill", "gray")
+                .attr("stroke", "white");
+
+            sections.append("image")
+                .attr("xlink:href", d => d.image)
+                .attr("width", 70)
+                .attr("height", 70)
+                .attr("transform", d => {
+                    const [x, y] = section.centroid(d);
+                    return `translate(${x - 35}, ${y - 35})`;
+                })
+                .raise();
+
+            let clickedSections = [];
+            let filteredNumbats = numbats;
+            sections.on("click", function() {
+                if (!clickedSections.includes(this.id)) { 
+                    d3.select(this)
+                        .select("path")
+                        .attr("fill", "orange");
+                    clickedSections.push(this.id); 
+                } else {
+                    newArr = [];
+                    for (let i = 0; i < clickedSections.length; i++) {
+                        if (clickedSections[i] !== this.id) {
+                            newArr.push(clickedSections[i]);
+                        }
+                    }
+                    clickedSections = newArr
+                    d3.select(this)
+                        .select("path")
+                        .attr("fill", "gray");
+                }
+
+                if (clickedSections.length == 0) {
+                    filteredNumbats = numbats;
+                } else {
+                    filteredNumbats = numbats.filter(function (d) {
+                        for (let i = 0; i < clickedSections.length; i++) {
+                            if (d.season == clickedSections[i]) {
+                                return true
+                            }
+                        }
+                        return false
+                    });
+                }
+
+                map.selectAll("circle.numbat").remove();
+
+                let circles = viewport.selectAll("circle.numbat")
+                    .data(filteredNumbats)
+                    .enter()
+                    .append("circle")
+                    .attr("class", "numbat")
+                    .attr("r", 6)
+                    .attr("cx", d => d.position[0])
+                    .attr("cy", d => d.position[1])
+                    .attr("opacity", 0.8)
+                    .attr("fill", "#7DB0FE");
+                
+                clearSummaryText()
+                const australiaSightingTime = getSightingTime(filteredNumbats);
+                const australiaWeather = "cloudy"; // TODO -- replace with actual weather for all of australia
+                setSummaryText(australiaSightingTime, australiaWeather, "Australia", filteredNumbats.length);
+            });
 
             // Draw map
             const mapSvg = d3.select("#australia-map #plot");
@@ -281,7 +389,7 @@
             const getRelevantNumbats = () => {
                 let relevantNumbats = [];
                 let coordinates = selectedStateData.geometry.coordinates;
-                numbatsWithWeather.forEach(numbat => {
+                filteredNumbats.forEach(numbat => {
                     let point = [numbat.decimalLongitude, numbat.decimalLatitude];
                     for (let i = 0; i < coordinates.length; i++) {
                         if (d3.polygonContains(coordinates[i][0], point)) {
@@ -303,9 +411,9 @@
             }
 
             const defaultSummaryText = () => {
-                const australiaSightingTime = getSightingTime(numbatsWithWeather);
-                const australiaWeather = getWeather(numbatsWithWeather);
-                setSummaryText(australiaSightingTime, australiaWeather, "Australia", numbatsWithWeather.length);
+                const australiaSightingTime = getSightingTime(numbats);
+                const australiaWeather = getWeather(numbats);
+                setSummaryText(australiaSightingTime, australiaWeather, "Australia", numbats.length);
             }
 
             const clearSummaryText = () => {
@@ -345,7 +453,7 @@
                         selectedState.attr("fill", "#EEE");
                         selectedState = null;
                         clearSummaryText();
-                        updateCircleColors(numbatsWithWeather);
+                        updateCircleColors(filteredNumbats);
                     } else {
                         // select
                         selectedState.attr("fill", "#EEE");
@@ -379,14 +487,14 @@
                 });
 
             // Map pre-processing
-            numbatsWithWeather = numbatsWithWeather.filter(d => d.decimalLatitude != "NA" && d.decimalLongitude != "NA");
-            numbatsWithWeather.forEach(d => {
+            numbats = numbats.filter(d => d.decimalLatitude != "NA" && d.decimalLongitude != "NA");
+            numbats.forEach(d => {
                 d.decimalLatitude = Number(d.decimalLatitude);
                 d.decimalLongitude = Number(d.decimalLongitude);
                 d.position = projection([d.decimalLongitude, d.decimalLatitude]);
             });
 
-            let circles = viewport.selectAll("circle.numbat").data(numbatsWithWeather)
+            let circles = map.selectAll("circle.numbat").data(filteredNumbats)
                 .join("circle")
                 .attr("class", "numbat")
                 .attr("r", 5)
@@ -406,7 +514,7 @@
                 .attr('stroke-width', 1)
                 .attr('stroke', 'white')
 
-            pointArea.selectAll("circle.numbat").data(numbatsWithWeather)
+            pointArea.selectAll("circle.numbat").data(numbats)
                 .join("circle")
                 .attr("class", "numbar")
                 .attr("r", 3)
@@ -474,17 +582,6 @@
                 let annotations = barsSvg.append("g").attr("id", "annotations");
                 let chartArea = barsSvg.append("g").attr("id", "points")
                     .attr("transform", `translate(${barMargin.left},${barMargin.top})`);
-
-                // Pre-process numbats with valid months
-                const validSeasonNumbats = relevantNumbats.filter(d => d.month != "NA");
-                const seasonMap = {
-                    "Jun": "summer", "Jul": "summer", "Aug": "summer", "Sep": "autumn", "Oct": "autumn", "Nov": "autumn",
-                    "Dec": "winter", "Jan": "winter", "Feb": "winter", "Mar": "spring", "Apr": "spring", "May": "spring"
-                }
-                validSeasonNumbats.forEach(d => {
-                    d.season = seasonMap[d.month]
-                })
-                const seasons = ["summer", "autumn", "winter", "spring"]
 
                 // Scales for bar chart
                 const seasonScale = d3.scaleBand().domain(seasons).range([0, chartWidth]).padding(0.2);
@@ -568,7 +665,7 @@
                 const chartHeight = lheight - lmargins.top - lmargins.bottom;
                 let lchartArea = linesSvg.append("g").attr("id", "line").attr("transform", `translate(${lmargins.left},${lmargins.top})`);
 
-                numbatsWithWeather.forEach((d, i) => {
+                numbats.forEach((d, i) => {
                     d['hour'] = d['hour'] == "NA" ? "NA" : Number(d['hour'])
                 })
 
@@ -599,7 +696,7 @@
                     23: 0
                 };
                 // numbats here prob have to be changed to filtered data
-                numbatsWithWeather.forEach((d, i) => {
+                numbats.forEach((d, i) => {
                     hourCounts[d.hour] = hourCounts[d.hour] + 1;
                 })
 
