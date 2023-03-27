@@ -160,22 +160,22 @@
 
             // Pre-process numbats with valid months
             const validSeasonNumbats = relevantNumbats.filter(d => d.month != "NA");
-                const seasonMap = {
-                    "Jun": "summer", "Jul": "summer", "Aug": "summer", "Sep": "autumn", "Oct": "autumn", "Nov": "autumn",
-                    "Dec": "winter", "Jan": "winter", "Feb": "winter", "Mar": "spring", "Apr": "spring", "May": "spring"
-                }
-                validSeasonNumbats.forEach(d => {
-                    d.season = seasonMap[d.month]
-                })
-                const seasons = ["summer", "autumn", "winter", "spring"]
+            const seasonMap = {
+                "Jun": "summer", "Jul": "summer", "Aug": "summer", "Sep": "autumn", "Oct": "autumn", "Nov": "autumn",
+                "Dec": "winter", "Jan": "winter", "Feb": "winter", "Mar": "spring", "Apr": "spring", "May": "spring"
+            }
+            validSeasonNumbats.forEach(d => {
+                d.season = seasonMap[d.month]
+            })
+            const seasons = ["summer", "autumn", "winter", "spring"]
 
 
             // Filtering by Seasons
             const filterData = [
-                { id: "winter", class: "season", image: "images/winter.png", startAngle: 0, endAngle: Math.PI / 2},
-                { id: "spring", class: "season", image: "images/spring.png", startAngle: Math.PI / 2, endAngle: Math.PI, x: -50, y: -100},
-                { id: "summer", class: "season", image: "images/summer.png", startAngle: Math.PI, endAngle: Math.PI * 1.5, x: -100, y: -50},
-                { id: "fall", class: "season", image: "images/fall.png", startAngle: Math.PI * 1.5, endAngle: Math.PI * 2, x: -10, y: -10},
+                { id: "winter", class: "season", image: "images/winter.png", startAngle: 0, endAngle: Math.PI / 2 },
+                { id: "spring", class: "season", image: "images/spring.png", startAngle: Math.PI / 2, endAngle: Math.PI, x: -50, y: -100 },
+                { id: "summer", class: "season", image: "images/summer.png", startAngle: Math.PI, endAngle: Math.PI * 1.5, x: -100, y: -50 },
+                { id: "fall", class: "season", image: "images/fall.png", startAngle: Math.PI * 1.5, endAngle: Math.PI * 2, x: -10, y: -10 },
             ];
 
             const section = d3.arc()
@@ -214,12 +214,12 @@
 
             let clickedSections = [];
             let filteredNumbats = numbats;
-            sections.on("click", function() {
-                if (!clickedSections.includes(this.id)) { 
+            sections.on("click", function () {
+                if (!clickedSections.includes(this.id)) {
                     d3.select(this)
                         .select("path")
                         .attr("fill", "orange");
-                    clickedSections.push(this.id); 
+                    clickedSections.push(this.id);
                 } else {
                     newArr = [];
                     for (let i = 0; i < clickedSections.length; i++) {
@@ -258,7 +258,7 @@
                     .attr("cy", d => d.position[1])
                     .attr("opacity", 0.8)
                     .attr("fill", "#7DB0FE");
-                
+
                 clearSummaryText()
                 const australiaSightingTime = getSightingTime(filteredNumbats);
                 const australiaWeather = "cloudy"; // TODO -- replace with actual weather for all of australia
@@ -330,16 +330,34 @@
             const setSummaryText = (sightingTime, sightingWeather, state, numbatCount) => {
                 let displaySightingTime = `${sightingTime > 12 ? sightingTime - 12 : sightingTime} ${sightingTime > 12 ? "PM" : "AM"}`
                 const highlightColor = '#6a994e'
+
                 let textData = [
                     [{ text: "In ", color: 'black' }, { text: `${state}`, color: highlightColor },
                     { text: ", ", color: 'black' }, { text: `${numbatCount} `, color: highlightColor },
-                    { text: `numbat${numbatCount == 1 ? " has" : "s have"} been sighted.`, color: 'black' }],
+                    { text: `numbat${numbatCount == 1 ? " has" : "s have"} been sighted `, color: 'black' }],
                 ]
+
+                // Seasons
+                if (clickedSections.length == 0 || clickedSections.length == 4) {
+                    textData[0].push({ text: 'year-round', color: highlightColor }, { text: ".", color: 'black' })
+                    console.log(textData[0])
+                } else if (clickedSections.length == 1) {
+                    textData[0].push({ text: " in the ", color: 'black' }, { text: `${clickedSections[0]}`, color: highlightColor },
+                        { text: ".", color: 'black' })
+                } else if (clickedSections.length == 2) {
+                    textData.push([{ text: " in the ", color: 'black' }, { text: `${clickedSections[0]}` + " and " + `${clickedSections[1]}`, color: highlightColor },
+                    { text: ".", color: 'black' }])
+                } else if (clickedSections.length == 3) {
+                    textData.push([{ text: " in the ", color: 'black' },
+                    { text: `${clickedSections[0]}` + ", " + `${clickedSections[1]}` + ", and " + `${clickedSections[2]}`, color: highlightColor },
+                    { text: ".", color: 'black' }])
+                }
+
                 if (sightingTime != 0) {
                     textData.push([{ text: "The most common sighting time is ", color: 'black' }, { text: `${displaySightingTime}.`, color: highlightColor }])
                 }
                 if (sightingWeather != "") {
-                    textData.push([{ text: "Numbats are typically seen on ", color: 'black' }, { text: `${sightingWeather} `, color: highlightColor }, { text: "days", color: 'black' }])
+                    textData.push([{ text: "Numbats are typically seen on ", color: 'black' }, { text: `${sightingWeather} `, color: highlightColor }, { text: "days.", color: 'black' }])
                 }
                 let texts = d3.select("#summary-text").selectAll('text.summary').data(textData)
                     .join("text")
@@ -372,18 +390,18 @@
             }
 
             const getWeather = (relevantNumbats) => {
-              const numbatWeather = relevantNumbats.filter(d => d.WeatherCondition != "").map(d => d.WeatherCondition);
-              console.log(numbatWeather)
-              if (numbatWeather.length == 0) return "";
-              let weatherMap = {};
-              numbatWeather.forEach(w => {
-                if (!(w in weatherMap)) {
-                  weatherMap[w] = 1;
-                } else { 
-                  weatherMap[w] = weatherMap[w] + 1;
-                }
-              })
-              return Object.keys(weatherMap).reduce((a, b) => weatherMap[a] > weatherMap[b] ? a : b);
+                const numbatWeather = relevantNumbats.filter(d => d.WeatherCondition != "").map(d => d.WeatherCondition);
+                console.log(numbatWeather)
+                if (numbatWeather.length == 0) return "";
+                let weatherMap = {};
+                numbatWeather.forEach(w => {
+                    if (!(w in weatherMap)) {
+                        weatherMap[w] = 1;
+                    } else {
+                        weatherMap[w] = weatherMap[w] + 1;
+                    }
+                })
+                return Object.keys(weatherMap).reduce((a, b) => weatherMap[a] > weatherMap[b] ? a : b);
             }
 
             const getRelevantNumbats = () => {
