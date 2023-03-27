@@ -87,9 +87,9 @@
             align-items: center;
         }
 
-        #col-2 #australia-map {}
-
-        #col-2 #summary {}
+        #col-2 #summary-text {
+            padding-top: 20px;
+        }
 
         #col-3 {
             display: flex;
@@ -109,9 +109,9 @@
             margin: 5px;
         }
 
-        #col-3 #bars {}
-
-        #col-3 #lines {}
+        #minimap-rect {
+            border-radius: 10px;
+        }
     </style>
 
 </head>
@@ -133,8 +133,14 @@
             </div>
         </div>
         <div id="col-2">
-            <svg id="australia-map" height="500" width="600"></svg>
             <svg id="summary-text" height="100" width="600"></svg>
+
+            <svg id="australia-map" height="560" width="700">
+                <g id="plot" height="600" width="700"></g>
+                <g id="minimap" width="200" height="200" transform="translate(475,25)">
+                    <rect id="minimap-rect" x="0" y="0" width="200" height="200" fill="white" opacity="1" />
+                </g>
+            </svg>
         </div>
         <div id="col-3">
             <h2>Overview (Per Region)</h2>
@@ -148,10 +154,21 @@
             var numbats = await d3.csv('data.csv');
             console.log(numbats);
             const australia = await d3.json('./austrailian.states.geojson');
-            const numbatSpecies = [... new Set(numbats.map(d => d.scientificName))];
             var selectedState;
             var selectedStateData;
             var relevantNumbats = numbats;
+
+            // Pre-process numbats with valid months
+            const validSeasonNumbats = relevantNumbats.filter(d => d.month != "NA");
+                const seasonMap = {
+                    "Jun": "summer", "Jul": "summer", "Aug": "summer", "Sep": "autumn", "Oct": "autumn", "Nov": "autumn",
+                    "Dec": "winter", "Jan": "winter", "Feb": "winter", "Mar": "spring", "Apr": "spring", "May": "spring"
+                }
+                validSeasonNumbats.forEach(d => {
+                    d.season = seasonMap[d.month]
+                })
+                const seasons = ["summer", "autumn", "winter", "spring"]
+
 
             // Filtering by Seasons
             const filterData = [
@@ -231,7 +248,7 @@
 
                 map.selectAll("circle.numbat").remove();
 
-                let circles = map.selectAll("circle.numbat")
+                let circles = viewport.selectAll("circle.numbat")
                     .data(filteredNumbats)
                     .enter()
                     .append("circle")
@@ -240,7 +257,7 @@
                     .attr("cx", d => d.position[0])
                     .attr("cy", d => d.position[1])
                     .attr("opacity", 0.8)
-                    .attr("fill", d => numbatColorScale(d.scientificName));
+                    .attr("fill", "#7DB0FE");
                 
                 clearSummaryText()
                 const australiaSightingTime = getSightingTime(filteredNumbats);
@@ -248,16 +265,65 @@
                 setSummaryText(australiaSightingTime, australiaWeather, "Australia", filteredNumbats.length);
             });
 
-            // Scales 
-            const numbatColorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(numbatSpecies);
-
             // Draw map
-            const mapSvg = d3.select("#australia-map");
+            const mapSvg = d3.select("#australia-map #plot");
             const mapMargin = { top: 20, left: 20, right: 20, bottom: 20 };
             const mapWidth = mapSvg.attr("width") - mapMargin.left - mapMargin.right;
             const mapHeight = mapSvg.attr("height") - mapMargin.top - mapMargin.bottom;
             const map = mapSvg.append("g").attr("transform", `${mapMargin.left}, ${mapMargin.top}`);
 
+            // main chart region
+            map.append("defs").append("clipPath")
+                .attr("id", "chartClip")
+                .append("rect")
+                .attr("x", 0)
+                .attr("y", 0)
+                .attr("fill", "aquamarine")
+                .attr("width", mapWidth)
+                .attr("height", mapHeight);
+            map.attr("clip-path", "url(#chartClip)");
+
+            // Interactive Surface Layer
+            map.append("rect").attr("x", 0).attr("y", 0)
+                .attr("width", mapWidth).attr("height", mapHeight)
+                .attr("fill", "none")
+                .style("pointer-events", "all")
+
+            // Pan-zoom handler
+            let zoomExtent = [[0, 0], [mapWidth, mapHeight]];
+            let translateExtent = [[-100, -100], [mapWidth + 100, mapHeight + 100]];
+            var plotZoom = d3.zoom()
+                .extent(zoomExtent)
+                .translateExtent(translateExtent)
+                .scaleExtent([1, 10])
+                .on("zoom", plotZoomed);
+
+            // then add the zoom handler
+            map.call(plotZoom);
+
+            // composing the minimap
+            // first, a teeny tiny version of the scatterplot
+            let viewport = map.append("g");
+
+            const minimap = d3.select("#australia-map #minimap");
+            const minimapMargin = { top: 4, right: 4, bottom: 4, left: 4 };
+            const minimapWidth = minimap.attr("width") - minimapMargin.left - minimapMargin.right;
+            const minimapHeight = minimap.attr("height") - minimapMargin.top - minimapMargin.bottom;
+            const minimapArea = minimap.append("g")
+                .attr("transform", "translate(" + minimapMargin.left + "," + minimapMargin.top + ")")
+                .attr("opacity", 0.5);
+
+            const minimapXScale = d3
+                .scaleLinear()
+                .domain([0, mapWidth])
+                .range([0, minimapWidth])
+            const minimapYScale = d3
+                .scaleLinear()
+                .domain([mapHeight, 0])
+                .range([minimapHeight, 0])
+
+            const minimapProjection = d3.geoMercator().fitSize([minimapWidth, minimapHeight], australia)
+            const minimapPath = d3.geoPath().projection(minimapProjection)
             const projection = d3.geoMercator().fitSize([mapWidth, mapHeight], australia)
             const path = d3.geoPath().projection(projection);
 
@@ -341,17 +407,15 @@
 
             const updateCircleColors = (relevantNumbats) => {
                 relevantNumbatIds = relevantNumbats.map(d => d.recordID);
-                map.selectAll('.numbat')
+                viewport.selectAll('.numbat')
                     .transition()
                     .duration(500)
                     .attr("fill", d =>
                         relevantNumbatIds.includes(d.recordID) ?
-                            numbatColorScale(d.scientificName) : "#dad7cd")
+                            "#7DB0FE" : "#dad7cd")
             }
 
-            console.log(map.selectAll("path.state"))
-
-            let statePaths = map.selectAll("path.state").data(australia.features)
+            let statePaths = viewport.selectAll("path.state").data(australia.features)
                 .join("path")
                 .attr("class", "state")
                 .attr("note", d => d.id)
@@ -383,8 +447,8 @@
                         let relevantNumbats = getRelevantNumbats()
                         updateSummaryText(relevantNumbats);
                         updateCircleColors(relevantNumbats);
-                        drawBarChart();
-                        drawLineGraph();
+                        //drawBarChart();
+                        //drawLineGraph();
                     }
                 }).on("mouseover", function (e, d) {
                     d3.select(this)
@@ -417,11 +481,82 @@
             let circles = map.selectAll("circle.numbat").data(filteredNumbats)
                 .join("circle")
                 .attr("class", "numbat")
-                .attr("r", 6)
+                .attr("r", 5)
                 .attr("cx", d => d.position[0])
                 .attr("cy", d => d.position[1])
                 .attr("opacity", 0.8)
-                .attr("fill", d => numbatColorScale(d.scientificName));
+                .attr("fill", d => "#7DB0FE");
+
+            let pointArea = minimapArea.append("g").attr("class", "points")
+
+            pointArea.selectAll('minimap_outline')
+                .data(australia.features)
+                .join('path')
+                .attr('class', 'minimap_neighborhoods')
+                .attr('fill', '#8C8C8C')
+                .attr('d', minimapPath)
+                .attr('stroke-width', 1)
+                .attr('stroke', 'white')
+
+            pointArea.selectAll("circle.numbat").data(numbats)
+                .join("circle")
+                .attr("class", "numbar")
+                .attr("r", 3)
+                .attr("cx", d => {
+                    return minimapProjection([d.decimalLongitude, d.decimalLatitude])[0]
+                })
+                .attr("cy", d => {
+                    return minimapProjection([d.decimalLongitude, d.decimalLatitude])[1]
+                })
+                .attr("opacity", 0.8)
+                .attr("fill", d => "#7DB0FE");
+
+            let brushGroup = minimapArea.append("g").attr("class", "brush");
+            let brush = d3.brush()
+                .extent([[0, 0], [minimapWidth, minimapHeight]])
+                .on("brush", brushed)
+            brushGroup.call(brush)
+
+            function plotZoomed({ transform }) {
+                viewport.attr('transform', transform)
+
+                circles.attr('r', 6 / transform.k)
+
+                const upperLeft = transform.invert([0, 0])
+                const bottomRight = transform.invert([mapWidth, mapHeight])
+
+                const upperLeftMinimap = [
+                    minimapXScale(upperLeft[0]),
+                    minimapXScale(upperLeft[1])
+                ]
+
+                const bottomRightMinimap = [
+                    minimapXScale(bottomRight[0]),
+                    minimapXScale(bottomRight[1])
+                ]
+
+                brushGroup.call(brush.move, [upperLeftMinimap, bottomRightMinimap])
+            }
+
+            function brushed({ sourceEvent, selection }) {
+
+                if (sourceEvent === undefined) {
+                    return;
+                }
+
+                let transform = d3.zoomTransform(map.node());
+
+                // need to convert back to plotZoom's coordinate space 
+                let corner = [minimapXScale.invert(selection[0][0]), minimapYScale.invert(selection[0][1])];
+
+                // modify the transform
+                transform.x = -corner[0] * transform.k;
+                transform.y = -corner[1] * transform.k;
+
+                map.call(plotZoom.transform, transform);
+            }
+
+            map.call(plotZoom.transform, d3.zoomIdentity);
 
             const drawBarChart = () => {
                 const barsSvg = d3.select('#bars');
@@ -431,17 +566,6 @@
                 let annotations = barsSvg.append("g").attr("id", "annotations");
                 let chartArea = barsSvg.append("g").attr("id", "points")
                     .attr("transform", `translate(${barMargin.left},${barMargin.top})`);
-
-                // Pre-process numbats with valid months
-                const validSeasonNumbats = relevantNumbats.filter(d => d.month != "NA");
-                const seasonMap = {
-                    "Jun": "summer", "Jul": "summer", "Aug": "summer", "Sep": "autumn", "Oct": "autumn", "Nov": "autumn",
-                    "Dec": "winter", "Jan": "winter", "Feb": "winter", "Mar": "spring", "Apr": "spring", "May": "spring"
-                }
-                validSeasonNumbats.forEach(d => {
-                    d.season = seasonMap[d.month]
-                })
-                const seasons = ["summer", "autumn", "winter", "spring"]
 
                 // Scales for bar chart
                 const seasonScale = d3.scaleBand().domain(seasons).range([0, chartWidth]).padding(0.2);
@@ -515,24 +639,6 @@
                     .attr("transform", `rotate(-90) translate(${-chartHeight / 2},${-barMargin.left - 10})`)
                     .text("Numbat Sighting Count");
 
-                const startY = 50;
-                const legend = d3.select("#legend");
-                numbatSpecies.forEach((d, i) => {
-                    legend.append("circle")
-                        .attr("cx", 50)
-                        .attr("cy", startY + 30 * i)
-                        .attr("r", 6)
-                        .attr("fill", numbatColorScale(d))
-
-                    let firstText = legend.append("text")
-                        .text(d)
-                        .attr("font-size", "16px")
-                        .attr("font-style", "italic")
-                        .attr("fill", numbatColorScale(d))
-                        .attr("x", 70)
-                        .attr("y", startY + 30 * i)
-                        .attr("alignment-baseline", "middle")
-                })
             }
             drawLineGraph = () => {
                 const linesSvg = d3.select("#lines");
@@ -649,10 +755,10 @@
             defaultSummaryText();
 
             // Draw bar chart 
-            drawBarChart();
+            //drawBarChart();
 
             // Draw Line graph
-            drawLineGraph();
+            //drawLineGraph();
         }
         drawPlot();
     </script>
