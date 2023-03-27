@@ -150,11 +150,12 @@
         const drawPlot = async () => {
             // Load data
             var numbats = await d3.csv('./numbats.csv');
-            console.log(numbats);
+            var numbatsWithWeather = await d3.csv('./data.csv')
+            console.log(numbatsWithWeather);
             const australia = await d3.json('./austrailian.states.geojson');
             var selectedState;
             var selectedStateData;
-            var relevantNumbats = numbats;
+            var relevantNumbats = numbatsWithWeather;
 
             // Draw map
             const mapSvg = d3.select("#australia-map #plot");
@@ -229,7 +230,7 @@
                 if (sightingTime != 0) {
                     textData.push([{ text: "The most common sighting time is ", color: 'black' }, { text: `${displaySightingTime}.`, color: highlightColor }])
                 }
-                if (numbatCount != 0) {
+                if (sightingWeather != "") {
                     textData.push([{ text: "Numbats are typically seen on ", color: 'black' }, { text: `${sightingWeather} `, color: highlightColor }, { text: "days", color: 'black' }])
                 }
                 let texts = d3.select("#summary-text").selectAll('text.summary').data(textData)
@@ -262,10 +263,25 @@
                 return sightingTimeCounts.indexOf(Math.max(...sightingTimeCounts));
             }
 
+            const getWeather = (relevantNumbats) => {
+              const numbatWeather = relevantNumbats.filter(d => d.WeatherCondition != "").map(d => d.WeatherCondition);
+              console.log(numbatWeather)
+              if (numbatWeather.length == 0) return "";
+              let weatherMap = {};
+              numbatWeather.forEach(w => {
+                if (!(w in weatherMap)) {
+                  weatherMap[w] = 1;
+                } else { 
+                  weatherMap[w] = weatherMap[w] + 1;
+                }
+              })
+              return Object.keys(weatherMap).reduce((a, b) => weatherMap[a] > weatherMap[b] ? a : b);
+            }
+
             const getRelevantNumbats = () => {
                 let relevantNumbats = [];
                 let coordinates = selectedStateData.geometry.coordinates;
-                numbats.forEach(numbat => {
+                numbatsWithWeather.forEach(numbat => {
                     let point = [numbat.decimalLongitude, numbat.decimalLatitude];
                     for (let i = 0; i < coordinates.length; i++) {
                         if (d3.polygonContains(coordinates[i][0], point)) {
@@ -281,14 +297,15 @@
                 // Get most popular sighting time 
                 let sightingTime = getSightingTime(relevantNumbats);
                 // Get most popular weather
-                let sightingWeather = 'sunny'; // TODO -- replace with actual weather 
+                getWeather(relevantNumbats);
+                let sightingWeather = getWeather(relevantNumbats); // TODO -- replace with actual weather 
                 setSummaryText(sightingTime, sightingWeather, selectedStateData.properties.STATE_NAME, relevantNumbats.length);
             }
 
             const defaultSummaryText = () => {
-                const australiaSightingTime = getSightingTime(numbats);
-                const australiaWeather = "cloudy"; // TODO -- replace with actual weather for all of australia
-                setSummaryText(australiaSightingTime, australiaWeather, "Australia", numbats.length);
+                const australiaSightingTime = getSightingTime(numbatsWithWeather);
+                const australiaWeather = getWeather(numbatsWithWeather);
+                setSummaryText(australiaSightingTime, australiaWeather, "Australia", numbatsWithWeather.length);
             }
 
             const clearSummaryText = () => {
@@ -328,7 +345,7 @@
                         selectedState.attr("fill", "#EEE");
                         selectedState = null;
                         clearSummaryText();
-                        updateCircleColors(numbats);
+                        updateCircleColors(numbatsWithWeather);
                     } else {
                         // select
                         selectedState.attr("fill", "#EEE");
@@ -362,14 +379,14 @@
                 });
 
             // Map pre-processing
-            numbats = numbats.filter(d => d.decimalLatitude != "NA" && d.decimalLongitude != "NA");
-            numbats.forEach(d => {
+            numbatsWithWeather = numbatsWithWeather.filter(d => d.decimalLatitude != "NA" && d.decimalLongitude != "NA");
+            numbatsWithWeather.forEach(d => {
                 d.decimalLatitude = Number(d.decimalLatitude);
                 d.decimalLongitude = Number(d.decimalLongitude);
                 d.position = projection([d.decimalLongitude, d.decimalLatitude]);
             });
 
-            let circles = viewport.selectAll("circle.numbat").data(numbats)
+            let circles = viewport.selectAll("circle.numbat").data(numbatsWithWeather)
                 .join("circle")
                 .attr("class", "numbat")
                 .attr("r", 5)
@@ -389,7 +406,7 @@
                 .attr('stroke-width', 1)
                 .attr('stroke', 'white')
 
-            pointArea.selectAll("circle.numbat").data(numbats)
+            pointArea.selectAll("circle.numbat").data(numbatsWithWeather)
                 .join("circle")
                 .attr("class", "numbar")
                 .attr("r", 3)
@@ -551,7 +568,7 @@
                 const chartHeight = lheight - lmargins.top - lmargins.bottom;
                 let lchartArea = linesSvg.append("g").attr("id", "line").attr("transform", `translate(${lmargins.left},${lmargins.top})`);
 
-                numbats.forEach((d, i) => {
+                numbatsWithWeather.forEach((d, i) => {
                     d['hour'] = d['hour'] == "NA" ? "NA" : Number(d['hour'])
                 })
 
@@ -582,7 +599,7 @@
                     23: 0
                 };
                 // numbats here prob have to be changed to filtered data
-                numbats.forEach((d, i) => {
+                numbatsWithWeather.forEach((d, i) => {
                     hourCounts[d.hour] = hourCounts[d.hour] + 1;
                 })
 
