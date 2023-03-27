@@ -247,6 +247,7 @@
                 }
 
                 map.selectAll("circle.numbat").remove();
+                pointArea.selectAll("circle.numbat").remove();
 
                 let circles = viewport.selectAll("circle.numbat")
                     .data(filteredNumbats)
@@ -258,10 +259,23 @@
                     .attr("cy", d => d.position[1])
                     .attr("opacity", 0.8)
                     .attr("fill", "#7DB0FE");
+
+                pointArea.selectAll("circle.numbat").data(filteredNumbats)
+                    .join("circle")
+                    .attr("class", "numbat")
+                    .attr("r", 3)
+                    .attr("cx", d => {
+                        return minimapProjection([d.decimalLongitude, d.decimalLatitude])[0]
+                    })
+                    .attr("cy", d => {
+                        return minimapProjection([d.decimalLongitude, d.decimalLatitude])[1]
+                    })
+                    .attr("opacity", 0.8)
+                    .attr("fill", d => "#7DB0FE");
                 
                 clearSummaryText()
                 const australiaSightingTime = getSightingTime(filteredNumbats);
-                const australiaWeather = "cloudy"; // TODO -- replace with actual weather for all of australia
+                const australiaWeather = getWeather(filteredNumbats)
                 setSummaryText(australiaSightingTime, australiaWeather, "Australia", filteredNumbats.length);
             });
 
@@ -516,7 +530,7 @@
 
             pointArea.selectAll("circle.numbat").data(numbats)
                 .join("circle")
-                .attr("class", "numbar")
+                .attr("class", "numbat")
                 .attr("r", 3)
                 .attr("cx", d => {
                     return minimapProjection([d.decimalLongitude, d.decimalLatitude])[0]
