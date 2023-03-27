@@ -22,6 +22,11 @@
             src: url("fonts/SFPRODISPLAYBOLD.OTF");
         }
 
+        @font-face {
+            font-family: "SFPro-Italic";
+            src: url("fonts/SFPRODISPLAYLIGHTITALIC.OTF");
+        }
+
         body {
             background-color: #faf6e9;
             font-family: SFPro;
@@ -68,6 +73,10 @@
             margin: 10px;
             margin-bottom: 20px;
             box-shadow: -10px 10px rgb(207, 207, 207);
+        }
+
+        #col-1 #instructions #disclaimer {
+            font-family: SFPro-Italic;
         }
 
         #col-1 #filters {
@@ -121,9 +130,11 @@
         <div id="col-1">
             <div id="instructions">
                 <h2>Instructions</h2>
-                <p>Use the buttons below to select certain seasons.</p>
-                <p>Click on a map region to narrow down on location.</p>
+                <p>Use the buttons below to select certain seasons and click on a map region to narrow down the
+                    location.</p>
                 <p>The summary will update according to the filters chosen.</p>
+                <p id="disclaimer">Due to the nature of the dataset, there are a lack of points that contain both
+                    geographical and time information.</p>
             </div>
             <div id="filters">
                 <svg id="seasons" width="200" height="300"></svg>
@@ -153,6 +164,7 @@
             var selectedState;
             var selectedStateData;
             var relevantNumbats = numbats;
+            var transformK = 0
 
             // Filtering by Seasons
             const filterData = [
@@ -199,7 +211,7 @@
             let clickedSections = [];
             let filteredNumbats = numbats;
 
-            function filter(activeFilters){
+            function filter(activeFilters) {
                 map.selectAll("circle.numbat").remove();
                 pointArea.selectAll("circle.numbat").remove();
 
@@ -219,12 +231,12 @@
 
                 console.log(filteredNumbats)
 
-                let circles = viewport.selectAll("circle.numbat")
+                circles = viewport.selectAll("circle.numbat")
                     .data(filteredNumbats)
                     .enter()
                     .append("circle")
                     .attr("class", "numbat")
-                    .attr("r", 6)
+                    .attr('r', 6 / transformK)
                     .attr("cx", d => d.position[0])
                     .attr("cy", d => d.position[1])
                     .attr("opacity", 0.8)
@@ -245,9 +257,9 @@
                     .attr("fill", d => "#7DB0FE");
 
                 // Get all updated relevant numbats in coordinates
-                if(selectedState != null){
+                if (selectedState != null) {
                     relevantNumbats = getRelevantNumbats()
-                } else{
+                } else {
                     relevantNumbats = numbats
                 }
                 updateCircleColors(relevantNumbats)
@@ -439,9 +451,9 @@
                 let sightingTime = getSightingTime(relevantNumbats);
                 // Get most popular weather
                 getWeather(relevantNumbats);
-                let sightingWeather = getWeather(relevantNumbats); 
+                let sightingWeather = getWeather(relevantNumbats);
                 let name = "Australia";
-                if(selectedState != null){
+                if (selectedState != null) {
                     name = selectedStateData.properties.STATE_NAME
                 }
                 setSummaryText(sightingTime, sightingWeather, name, relevantNumbats.length);
@@ -570,6 +582,7 @@
 
             function plotZoomed({ transform }) {
                 viewport.attr('transform', transform)
+                transformK = transform.k;
 
                 circles.attr('r', 6 / transform.k)
 
