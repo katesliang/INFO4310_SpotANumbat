@@ -107,10 +107,6 @@
             font-family: SFPro-Bold;
             margin: 5px;
         }
-
-        #minimap-rect {
-            border-radius: 10px;
-        }
     </style>
 
 </head>
@@ -237,7 +233,7 @@
                 map.selectAll("circle.numbat").remove();
                 pointArea.selectAll("circle.numbat").remove();
 
-                let circles = viewport.selectAll("circle.numbat")
+                circles = viewport.selectAll("circle.numbat")
                     .data(filteredNumbats)
                     .enter()
                     .append("circle")
@@ -260,7 +256,7 @@
                     })
                     .attr("opacity", 0.8)
                     .attr("fill", d => "#7DB0FE");
-                
+
                 clearSummaryText()
                 const australiaSightingTime = getSightingTime(filteredNumbats);
                 const australiaWeather = getWeather(filteredNumbats)
@@ -510,7 +506,7 @@
                 d.position = projection([d.decimalLongitude, d.decimalLatitude]);
             });
 
-            let circles = map.selectAll("circle.numbat").data(filteredNumbats)
+            let circles = viewport.selectAll("circle.numbat").data(filteredNumbats)
                 .join("circle")
                 .attr("class", "numbat")
                 .attr("r", 5)
