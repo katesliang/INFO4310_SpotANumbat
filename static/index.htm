@@ -146,13 +146,9 @@
             var numbats = await d3.csv('./numbats.csv');
             console.log(numbats);
             const australia = await d3.json('./austrailian.states.geojson');
-            const numbatSpecies = [... new Set(numbats.map(d => d.scientificName))];
             var selectedState;
             var selectedStateData;
             var relevantNumbats = numbats;
-
-            // Scales 
-            const numbatColorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(numbatSpecies);
 
             // Draw map
             const mapSvg = d3.select("#australia-map");
@@ -249,10 +245,8 @@
                     .duration(500)
                     .attr("fill", d =>
                         relevantNumbatIds.includes(d.recordID) ?
-                            numbatColorScale(d.scientificName) : "#dad7cd")
+                            "#7DB0FE" : "#dad7cd")
             }
-
-            console.log(map.selectAll("path.state"))
 
             let statePaths = map.selectAll("path.state").data(australia.features)
                 .join("path")
@@ -320,11 +314,11 @@
             let circles = map.selectAll("circle.numbat").data(numbats)
                 .join("circle")
                 .attr("class", "numbat")
-                .attr("r", 6)
+                .attr("r", 5)
                 .attr("cx", d => d.position[0])
                 .attr("cy", d => d.position[1])
                 .attr("opacity", 0.8)
-                .attr("fill", d => numbatColorScale(d.scientificName));
+                .attr("fill", d => "#7DB0FE");
 
             const drawBarChart = () => {
                 const barsSvg = d3.select('#bars');
@@ -418,24 +412,6 @@
                     .attr("transform", `rotate(-90) translate(${-chartHeight / 2},${-barMargin.left - 10})`)
                     .text("Numbat Sighting Count");
 
-                const startY = 50;
-                const legend = d3.select("#legend");
-                numbatSpecies.forEach((d, i) => {
-                    legend.append("circle")
-                        .attr("cx", 50)
-                        .attr("cy", startY + 30 * i)
-                        .attr("r", 6)
-                        .attr("fill", numbatColorScale(d))
-
-                    let firstText = legend.append("text")
-                        .text(d)
-                        .attr("font-size", "16px")
-                        .attr("font-style", "italic")
-                        .attr("fill", numbatColorScale(d))
-                        .attr("x", 70)
-                        .attr("y", startY + 30 * i)
-                        .attr("alignment-baseline", "middle")
-                })
             }
             drawLineGraph = () => {
                 const linesSvg = d3.select("#lines");
@@ -552,10 +528,10 @@
             defaultSummaryText();
 
             // Draw bar chart 
-            drawBarChart();
+            //drawBarChart();
 
             // Draw Line graph
-            drawLineGraph();
+            //drawLineGraph();
         }
         drawPlot();
     </script>
